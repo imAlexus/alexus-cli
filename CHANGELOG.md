@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.2 — 2026-07-14
+
+- L'indicizzazione ignora cartelle di sistema non accessibili e gli errori `EPERM` di scansione.
+- `/provider` può mantenere la chiave API già configurata senza richiederla nuovamente.
+- `/model` scorre tutti i risultati e offre un input custom esplicito con `Ctrl+N` o `/model provider/modello`.
+
 ## 1.2.1 — 2026-07-14
 
 - Il comando `alexus update` usa un bootstrap leggero che non carica SQLite prima dell'aggiornamento, evitando file nativi bloccati su Windows.

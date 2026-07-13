@@ -20,6 +20,9 @@ const ignored = [
   "**/.cache/**",
   "**/target/**",
   "**/__pycache__/**",
+  "**/AppData/**",
+  "**/$RECYCLE.BIN/**",
+  "**/System Volume Information/**",
 ];
 
 const languages: Record<string, string> = {
@@ -51,6 +54,7 @@ export async function buildRepositoryMap(
     dot: true,
     ignore: ignored,
     followSymbolicLinks: false,
+    suppressErrors: true,
   });
   if (respectGitignore) {
     try {

@@ -23,11 +23,18 @@ describe("repository context", () => {
   it("respects ignore rules and ranks task-related paths", async () => {
     const workspace = await root();
     await mkdir(path.join(workspace, "src", "auth"), { recursive: true });
+    await mkdir(path.join(workspace, "AppData", "Local", "Temp", "blocked"), {
+      recursive: true,
+    });
     await writeFile(path.join(workspace, ".gitignore"), "ignored.ts\n");
     await writeFile(path.join(workspace, "ignored.ts"), "ignored");
     await writeFile(path.join(workspace, ".env"), "SECRET=value");
     await writeFile(path.join(workspace, "src", "auth", "login.ts"), "export const login = true;");
     await writeFile(path.join(workspace, "src", "other.ts"), "export const other = true;");
+    await writeFile(
+      path.join(workspace, "AppData", "Local", "Temp", "blocked", "system.tmp"),
+      "not project context",
+    );
 
     const repository = await buildRepositoryMap(workspace, true);
     expect(repository.map((entry) => entry.path)).toEqual([

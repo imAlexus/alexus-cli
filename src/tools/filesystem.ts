@@ -59,6 +59,7 @@ export const listFilesTool: ToolDefinition<typeof listSchema> = {
       deep: input.depth,
       ignore: baseIgnore,
       followSymbolicLinks: false,
+      suppressErrors: true,
     });
     const logicalRoot = path.resolve(c.workspaceRoot, input.path);
     const prefix = path.relative(c.workspaceRoot, logicalRoot).replaceAll("\\", "/");
@@ -143,6 +144,7 @@ export const searchFilesTool: ToolDefinition<typeof searchSchema> = {
         dot: true,
         ignore: baseIgnore,
         followSymbolicLinks: false,
+        suppressErrors: true,
       }),
     );
     const matches: Array<{ path: string; line: number; text: string }> = [];

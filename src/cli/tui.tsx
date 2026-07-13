@@ -43,9 +43,10 @@ interface PlanView {
 
 type ProviderDialog =
   | { stage: "provider" }
-  | { stage: "api-key"; apiKey: string }
+  | { stage: "api-key"; apiKey: string; hasExisting: boolean }
   | { stage: "loading-models" }
-  | { stage: "model"; query: string; models: AlexusModel[]; selected: number };
+  | { stage: "model"; query: string; models: AlexusModel[]; selected: number }
+  | { stage: "custom-model"; modelId: string };
 
 export function filterProviderModels(models: AlexusModel[], query: string): AlexusModel[] {
   const normalized = query.trim().toLowerCase();
@@ -386,12 +387,22 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         return;
       }
       if (providerDialog.stage === "provider") {
-        if (key.return || input === "1") setProviderDialog({ stage: "api-key", apiKey: "" });
+        if (key.return || input === "1")
+          setProviderDialog({
+            stage: "api-key",
+            apiKey: "",
+            hasExisting: Boolean(providerApiKey("openrouter")),
+          });
         return;
       }
       if (providerDialog.stage === "api-key") {
         if (key.return) {
           const apiKey = providerDialog.apiKey.trim();
+          if (!apiKey && providerDialog.hasExisting) {
+            setNotice("Chiave OpenRouter mantenuta. Caricamento modelli…");
+            void loadModelDialog();
+            return;
+          }
           if (apiKey.length < 12) {
             setNotice("La chiave API inserita non sembra valida.");
             return;
@@ -413,6 +424,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
           setProviderDialog({
             stage: "api-key",
             apiKey: providerDialog.apiKey.slice(0, -1),
+            hasExisting: providerDialog.hasExisting,
           });
           return;
         }
@@ -420,14 +432,17 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
           setProviderDialog({
             stage: "api-key",
             apiKey: `${providerDialog.apiKey}${input}`,
+            hasExisting: providerDialog.hasExisting,
           });
         return;
       }
       if (providerDialog.stage === "model") {
-        const matches = filterProviderModels(providerDialog.models, providerDialog.query).slice(
-          0,
-          8,
-        );
+        const matches = filterProviderModels(providerDialog.models, providerDialog.query);
+        if (key.ctrl && input === "n") {
+          setProviderDialog({ stage: "custom-model", modelId: providerDialog.query.trim() });
+          setNotice("Inserimento ID modello personalizzato.");
+          return;
+        }
         if (key.downArrow) {
           setProviderDialog({
             ...providerDialog,
@@ -453,8 +468,10 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
           return;
         }
         if (key.return) {
-          const modelId =
-            providerDialog.query.trim() || matches[providerDialog.selected % matches.length]?.id;
+          const exact = providerDialog.models.find(
+            (model) => model.id.toLowerCase() === providerDialog.query.trim().toLowerCase(),
+          );
+          const modelId = exact?.id ?? matches[providerDialog.selected % matches.length]?.id;
           if (!modelId) {
             setNotice("Digita un ID modello oppure selezionane uno.");
             return;
@@ -479,6 +496,34 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
             ...providerDialog,
             query: `${providerDialog.query}${input}`,
             selected: 0,
+          });
+        return;
+      }
+      if (providerDialog.stage === "custom-model") {
+        if (key.return) {
+          const modelId = providerDialog.modelId.trim();
+          if (!modelId) {
+            setNotice("Inserisci l'ID completo del modello, per esempio provider/modello.");
+            return;
+          }
+          setProviderDialog({ stage: "loading-models" });
+          void selectModel(modelId).catch((error: unknown) => {
+            setProviderDialog(undefined);
+            setNotice(error instanceof Error ? error.message : String(error));
+          });
+          return;
+        }
+        if (key.backspace || key.delete) {
+          setProviderDialog({
+            stage: "custom-model",
+            modelId: providerDialog.modelId.slice(0, -1),
+          });
+          return;
+        }
+        if (input && !key.ctrl && !key.meta)
+          setProviderDialog({
+            stage: "custom-model",
+            modelId: `${providerDialog.modelId}${input}`,
           });
         return;
       }
@@ -604,6 +649,10 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         return true;
       }
       if (command === "/model") {
+        if (parts.length) {
+          await selectModel(parts.join(" "));
+          return true;
+        }
         if (!providerApiKey("openrouter")) {
           setProviderDialog({ stage: "provider" });
           setNotice("Configura prima la chiave OpenRouter.");
@@ -667,7 +716,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       }
       return false;
     },
-    [exit, loadModelDialog, sessionId, showDiff, workspaceRoot],
+    [exit, loadModelDialog, selectModel, sessionId, showDiff, workspaceRoot],
   );
 
   const submit = useCallback(
@@ -828,12 +877,22 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
             <>
               <Text bold>Chiave API OpenRouter</Text>
               <Text>{"•".repeat(providerDialog.apiKey.length)} </Text>
-              <Text dimColor>Invio salva · Esc annulla</Text>
+              <Text dimColor>
+                {providerDialog.hasExisting && !providerDialog.apiKey
+                  ? "Invio mantiene la chiave esistente · Digita per sostituirla · Esc annulla"
+                  : "Invio salva · Esc annulla"}
+              </Text>
             </>
           ) : providerDialog.stage === "loading-models" ? (
             <Text color="yellow">
               <Spinner type="dots" /> Caricamento…
             </Text>
+          ) : providerDialog.stage === "custom-model" ? (
+            <>
+              <Text bold>ID modello personalizzato</Text>
+              <Text color="cyan">{providerDialog.modelId} </Text>
+              <Text dimColor>Digita provider/modello · Invio salva · Esc annulla</Text>
+            </>
           ) : (
             <>
               <Text bold>Seleziona modello OpenRouter</Text>
@@ -841,38 +900,29 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
                 Cerca o digita ID: <Text color="cyan">{providerDialog.query} </Text>
               </Text>
               {filterProviderModels(providerDialog.models, providerDialog.query)
-                .slice(0, 8)
-                .map((model, index) => (
-                  <Text
-                    key={model.id}
-                    {...(index ===
-                    providerDialog.selected %
-                      Math.max(
-                        1,
-                        Math.min(
-                          8,
-                          filterProviderModels(providerDialog.models, providerDialog.query).length,
-                        ),
-                      )
-                      ? { color: "cyan" as const, bold: true }
-                      : {})}
-                  >
-                    {index ===
-                    providerDialog.selected %
-                      Math.max(
-                        1,
-                        Math.min(
-                          8,
-                          filterProviderModels(providerDialog.models, providerDialog.query).length,
-                        ),
-                      )
-                      ? "›"
-                      : " "}{" "}
-                    {model.id} <Text dimColor>— {model.name}</Text>
-                  </Text>
-                ))}
+                .slice(
+                  Math.floor(providerDialog.selected / 8) * 8,
+                  Math.floor(providerDialog.selected / 8) * 8 + 8,
+                )
+                .map((model, index) => {
+                  const absoluteIndex = Math.floor(providerDialog.selected / 8) * 8 + index;
+                  return (
+                    <Text
+                      key={model.id}
+                      {...(absoluteIndex === providerDialog.selected
+                        ? { color: "cyan" as const, bold: true }
+                        : {})}
+                    >
+                      {absoluteIndex === providerDialog.selected ? "›" : " "} {model.id}{" "}
+                      <Text dimColor>— {model.name}</Text>
+                    </Text>
+                  );
+                })}
               <Text dimColor>
-                ↑↓ seleziona · Tab copia ID · Invio usa testo/selezione · Esc annulla
+                {filterProviderModels(providerDialog.models, providerDialog.query).length
+                  ? `${providerDialog.selected + 1}/${filterProviderModels(providerDialog.models, providerDialog.query).length} · `
+                  : "Nessun risultato · "}
+                ↑↓ scorri tutti · Tab copia ID · Ctrl+N ID custom · Invio seleziona · Esc annulla
               </Text>
             </>
           )}

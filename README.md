@@ -119,7 +119,7 @@ Nell'interfaccia interattiva sono disponibili:
 /exit
 ```
 
-Digitando `/` nel prompt appare l'elenco dei comandi compatibili. Usa `↑` e `↓` per scegliere e `Tab` per completare. `/provider` consente di sostituire la chiave API e prosegue direttamente con la scelta del modello. `/model` cerca i modelli OpenRouter compatibili con i tool: puoi selezionarne uno, filtrare per nome oppure digitare direttamente un ID. `Ctrl+O` mostra o nasconde gli argomenti degli strumenti. `Ctrl+C` annulla il task in corso; se Alexus è inattivo, chiude l'interfaccia. `Shift+Enter` inserisce una nuova riga nel prompt.
+Digitando `/` nel prompt appare l'elenco dei comandi compatibili. Usa `↑` e `↓` per scegliere e `Tab` per completare. `/provider` consente di sostituire la chiave API oppure, premendo subito Invio, mantenere quella già configurata; prosegue poi con la scelta del modello. `/model` cerca e scorre tutti i modelli OpenRouter compatibili con i tool, otto alla volta. Premi `Ctrl+N` per inserire esplicitamente un ID custom oppure usa direttamente `/model provider/modello`. `Ctrl+O` mostra o nasconde gli argomenti degli strumenti. `Ctrl+C` annulla il task in corso; se Alexus è inattivo, chiude l'interfaccia. `Shift+Enter` inserisce una nuova riga nel prompt.
 
 `--json` riserva stdout a eventi JSONL versionati; diagnostica e prompt di approvazione vanno su stderr.
 

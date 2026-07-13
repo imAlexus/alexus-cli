@@ -80,9 +80,20 @@ export async function configureProvider(providerId?: string): Promise<void> {
   );
   if (!provider)
     throw new Error(`Provider non supportato: ${selected}. Usa "alexus provider list".`);
-  const apiKey = (await promptMasked(`Chiave API ${provider.name}: `)).trim();
+  const existing = providerApiKey(provider.id);
+  const apiKey = (
+    await promptMasked(
+      `Chiave API ${provider.name}${existing ? " (Invio mantiene quella esistente)" : ""}: `,
+    )
+  ).trim();
+  if (!apiKey && existing) {
+    console.log(`${provider.name}: chiave esistente mantenuta. Apri Alexus e usa /model.`);
+    return;
+  }
   if (apiKey.length < 12) throw new Error("La chiave API inserita non sembra valida.");
   await saveProviderApiKey(provider.id, apiKey);
   if (provider.id === "openrouter") process.env.OPENROUTER_API_KEY = apiKey;
-  console.log(`${provider.name} configurato. Credenziali salvate in ${credentialsPath()}`);
+  console.log(
+    `${provider.name} configurato. Credenziali salvate in ${credentialsPath()}. Apri Alexus e usa /model.`,
+  );
 }
