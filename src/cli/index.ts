@@ -47,7 +47,9 @@ program
         maxCost?: number;
         approvalMode?: "readonly" | "workspace" | "full-access";
       },
-    ) => executeTask(root(), task, o),
+    ) => {
+      await executeTask(root(), task, o);
+    },
   );
 program
   .command("chat")

@@ -12,7 +12,8 @@
     "declaration": true,
     "sourceMap": true,
     "outDir": "dist",
-    "types": ["node"]
+    "types": ["node"],
+    "jsx": "react-jsx"
   },
   "include": ["src", "tests", "*.ts"]
 }

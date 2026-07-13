@@ -6,6 +6,7 @@ import type { SessionStore, StoredSession } from "../sessions/sqlite-store.js";
 import type { EventBus } from "../protocol/event-bus.js";
 import { event } from "../protocol/events.js";
 import { ApprovalManager } from "../security/approval-manager.js";
+import type { ApprovalPrompt } from "../security/approval-manager.js";
 import { AlexusError } from "../utils/errors.js";
 import { SYSTEM_PROMPT } from "./prompts.js";
 import { buildProjectContext } from "../context/context-builder.js";
@@ -24,6 +25,7 @@ export interface AgentInput {
   json: boolean;
   maxCost?: number;
   resumeMessages?: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+  approvalPrompt?: ApprovalPrompt;
 }
 export interface AgentResult {
   success: boolean;
@@ -92,6 +94,7 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
     input.config.approvalMode,
     Boolean(process.stdin.isTTY),
     input.json,
+    input.approvalPrompt,
   );
   let cost = 0;
   let mutations = 0;

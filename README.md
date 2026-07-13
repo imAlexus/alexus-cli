@@ -37,6 +37,8 @@ Su cmd.exe usare `set OPENROUTER_API_KEY=sk-or-v1-...`; su Linux/macOS usare `ex
 
 ## Uso
 
+Esegui `alexus` nella cartella del progetto per aprire l'interfaccia interattiva. La risposta viene mostrata in streaming, le operazioni sui file e i comandi appaiono in un pannello dedicato e le azioni a rischio chiedono conferma con `y` (una volta), `a` (per la sessione) o `n` (rifiuta).
+
 ```text
 alexus
 alexus chat
@@ -57,6 +59,24 @@ alexus model get
 alexus model set <model-id>
 alexus doctor
 ```
+
+Nell'interfaccia interattiva sono disponibili:
+
+```text
+/help
+/status
+/model
+/permissions readonly|workspace|full-access
+/diff
+/undo
+/sessions
+/plan <richiesta>
+/goal <obiettivo>
+/clear
+/exit
+```
+
+`Ctrl+O` mostra o nasconde gli argomenti degli strumenti. `Ctrl+C` annulla il task in corso; se Alexus è inattivo, chiude l'interfaccia. `Shift+Enter` inserisce una nuova riga nel prompt.
 
 `--json` riserva stdout a eventi JSONL versionati; diagnostica e prompt di approvazione vanno su stderr.
 

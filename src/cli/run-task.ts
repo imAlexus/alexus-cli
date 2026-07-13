@@ -9,6 +9,8 @@ import { createDefaultRegistry } from "../tools/default-registry.js";
 import { OpenRouterProvider } from "../providers/openrouter/openrouter-provider.js";
 import { assertToolModel } from "../providers/openrouter/models.js";
 import { runAgentLoop } from "../agent/agent-loop.js";
+import type { EventSink } from "../protocol/events.js";
+import type { ApprovalPrompt } from "../security/approval-manager.js";
 
 export interface RunOptions {
   model?: string;
@@ -16,12 +18,24 @@ export interface RunOptions {
   maxCost?: number;
   approvalMode?: AlexusConfig["approvalMode"];
   resumeSessionId?: string;
+  eventSink?: EventSink;
+  approvalPrompt?: ApprovalPrompt;
+  embedded?: boolean;
+  signal?: AbortSignal;
+}
+export interface ExecutionSummary {
+  sessionId: string;
+  success: boolean;
+  finalMessage: string;
+  verification: "verified" | "partial" | "unverified";
+  steps: number;
+  cost: number;
 }
 export async function executeTask(
   root: string,
   task: string,
   options: RunOptions = {},
-): Promise<void> {
+): Promise<ExecutionSummary> {
   await initializeWorkspace(root);
   const flags: Partial<AlexusConfig> = {};
   if (options.model) flags.model = options.model;
@@ -50,14 +64,17 @@ export async function executeTask(
   }
   const turn = store.createTurn(session.id, task);
   const events = new EventBus();
-  events.on(options.json ? jsonlWriter() : humanRenderer());
+  events.on(options.eventSink ?? (options.json ? jsonlWriter() : humanRenderer()));
   events.emit(event(session.id, "session.started", { workspace: root }));
   events.emit(event(session.id, "model.selected", { provider: "openrouter", model: config.model }));
   events.emit(event(session.id, "turn.started", { turnId: turn.id, prompt: task }));
   const controller = new AbortController();
+  const externalAbort = () => controller.abort();
+  if (options.signal?.aborted) controller.abort();
+  else options.signal?.addEventListener("abort", externalAbort, { once: true });
   const globalTimeout = setTimeout(() => controller.abort(), config.taskTimeoutMs);
   const cancel = () => controller.abort();
-  process.once("SIGINT", cancel);
+  if (!options.embedded) process.once("SIGINT", cancel);
   try {
     const result = await runAgentLoop({
       task,
@@ -71,6 +88,7 @@ export async function executeTask(
       events,
       signal: controller.signal,
       json: Boolean(options.json),
+      ...(options.approvalPrompt ? { approvalPrompt: options.approvalPrompt } : {}),
       ...(resumeMessages ? { resumeMessages } : {}),
       ...(options.maxCost !== undefined ? { maxCost: options.maxCost } : {}),
     });
@@ -91,13 +109,14 @@ export async function executeTask(
         cost: result.cost,
       }),
     );
-    if (!options.json) {
+    if (!options.json && !options.embedded) {
       if (!result.finalMessage.endsWith("\n")) process.stdout.write("\n");
       process.stderr.write(
         `\n${result.verification === "verified" ? "VERIFICATO" : result.verification === "partial" ? "PARZIALMENTE VERIFICATO" : "NON VERIFICATO"}\nSessione: ${session.id}\n`,
       );
     }
-    if (!result.success) process.exitCode = 1;
+    if (!result.success && !options.embedded) process.exitCode = 1;
+    return { sessionId: session.id, ...result };
   } catch (error) {
     store.updateStatus(session.id, controller.signal.aborted ? "cancelled" : "failed");
     store.finishTurn(turn.id, controller.signal.aborted ? "cancelled" : "failed");
@@ -117,7 +136,8 @@ export async function executeTask(
     throw error;
   } finally {
     clearTimeout(globalTimeout);
-    process.removeListener("SIGINT", cancel);
+    options.signal?.removeEventListener("abort", externalAbort);
+    if (!options.embedded) process.removeListener("SIGINT", cancel);
     store.close();
   }
 }
