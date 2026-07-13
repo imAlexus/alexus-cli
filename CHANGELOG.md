@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.4 — 2026-07-14
+
+- Nuova intestazione TUI a card con gerarchia visiva più chiara per versione, modello, workspace, permessi e sessione.
+
 ## 1.2.3 — 2026-07-14
 
 - Prompt, risposte ed errori dei turni precedenti restano visibili nella TUI durante la conversazione.

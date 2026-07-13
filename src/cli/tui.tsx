@@ -236,6 +236,48 @@ function appendToolOutput(tools: ToolView[], id: string, output: string): ToolVi
   );
 }
 
+function Header({
+  workspaceRoot,
+  config,
+  sessionId,
+}: {
+  workspaceRoot: string;
+  config: AlexusConfig | undefined;
+  sessionId: string | undefined;
+}): React.ReactElement {
+  const mode = config?.approvalMode;
+  const modeColor =
+    mode === "readonly" ? "green" : mode === "full-access" ? "red" : mode ? "yellow" : "gray";
+
+  return (
+    <Box borderStyle="round" borderColor="cyan" paddingX={1} flexDirection="column">
+      <Box justifyContent="space-between">
+        <Box>
+          <Text bold color="cyan">
+            ◆ ALEXUS
+          </Text>
+          <Text dimColor> · Coding Agent</Text>
+        </Box>
+        <Text color="cyan">v{PACKAGE_VERSION}</Text>
+      </Box>
+      <Box>
+        <Text dimColor>MODEL </Text>
+        <Text bold color="magenta">
+          {config?.model ?? "caricamento…"}
+        </Text>
+      </Box>
+      <Box flexWrap="wrap">
+        <Text dimColor>WORKSPACE </Text>
+        <Text bold>{path.basename(workspaceRoot)}</Text>
+        <Text dimColor> • MODE </Text>
+        <Text color={modeColor}>{mode ?? "…"}</Text>
+        <Text dimColor> • SESSION </Text>
+        <Text color={sessionId ? "blue" : "gray"}>{sessionId ?? "nuova"}</Text>
+      </Box>
+    </Box>
+  );
+}
+
 function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactElement {
   const { exit } = useApp();
   const [config, setConfig] = useState<AlexusConfig>();
@@ -814,16 +856,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
 
   return (
     <Box flexDirection="column" paddingX={1}>
-      <Box justifyContent="space-between">
-        <Text bold color="cyan">
-          Alexus CLI v{PACKAGE_VERSION}
-        </Text>
-        <Text dimColor>{config?.model ?? "caricamento…"}</Text>
-      </Box>
-      <Text dimColor>
-        {path.basename(workspaceRoot)} · {config?.approvalMode ?? "…"}
-        {sessionId ? ` · ${sessionId}` : ""}
-      </Text>
+      <Header workspaceRoot={workspaceRoot} config={config} sessionId={sessionId} />
       <Box marginTop={1} flexDirection="column">
         {conversation.map((entry) => (
           <Box key={entry.id} flexDirection="column" marginBottom={1}>
