@@ -16,6 +16,7 @@ import { startRepl } from "./repl.js";
 import { SessionStore } from "../sessions/sqlite-store.js";
 import { listModels } from "../providers/openrouter/models.js";
 import { buildProjectContextReport } from "../context/context-builder.js";
+import { buildSessionReport, formatSessionReport } from "../sessions/session-report.js";
 
 const program = new Command();
 program
@@ -142,6 +143,22 @@ program
       }
       if (plan.explanation) console.log(plan.explanation);
       for (const step of plan.steps) console.log(`[${step.status}] ${step.step}`);
+    } finally {
+      store.close();
+    }
+  });
+program
+  .command("review")
+  .description("mostra il report verificabile di una sessione")
+  .argument("[id]")
+  .option("--json")
+  .action(async (id: string | undefined, options: { json?: boolean }) => {
+    const store = new SessionStore(root());
+    try {
+      const session = id ? store.get(id) : store.latest();
+      if (!session) throw new Error("Sessione non trovata");
+      const report = await buildSessionReport(store, session.id);
+      console.log(options.json ? JSON.stringify(report, null, 2) : formatSessionReport(report));
     } finally {
       store.close();
     }

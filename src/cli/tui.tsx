@@ -15,6 +15,7 @@ import { SessionStore, type StoredPlanStep } from "../sessions/sqlite-store.js";
 import { PACKAGE_VERSION } from "../utils/version.js";
 import { detectProject, formatProjectProfile } from "../project/project-detector.js";
 import { buildProjectContextReport, type ContextStats } from "../context/context-builder.js";
+import { buildSessionReport, formatSessionReport } from "../sessions/session-report.js";
 
 interface ToolView {
   id: string;
@@ -325,6 +326,20 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         setNotice("La conversazione verrà compattata prima del prossimo prompt.");
         return true;
       }
+      if (command === "/review") {
+        const store = new SessionStore(workspaceRoot);
+        try {
+          const selected = sessionId ? store.get(sessionId) : store.latest();
+          setNotice(
+            selected
+              ? formatSessionReport(await buildSessionReport(store, selected.id))
+              : "Nessuna sessione.",
+          );
+        } finally {
+          store.close();
+        }
+        return true;
+      }
       if (command === "/plan" && (parts.length === 0 || parts[0] === "show")) {
         const store = new SessionStore(workspaceRoot);
         try {
@@ -358,7 +373,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       }
       if (command === "/help") {
         setNotice(
-          "/status  /context [task]  /compact  /new  /model  /permissions <mode>  /diff  /undo  /sessions  /plan <task>|show|clear  /goal <task>  /clear  /exit\nCtrl+O dettagli tool · Ctrl+C annulla/esce · Shift+Enter nuova riga",
+          "/status  /context [task]  /compact  /new  /review  /model  /permissions <mode>  /diff  /undo  /sessions  /plan <task>|show|clear  /goal <task>  /clear  /exit\nCtrl+O dettagli tool · Ctrl+C annulla/esce · Shift+Enter nuova riga",
         );
         return true;
       }

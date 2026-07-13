@@ -11,6 +11,7 @@ import { assertToolModel } from "../providers/openrouter/models.js";
 import { runAgentLoop } from "../agent/agent-loop.js";
 import type { EventSink } from "../protocol/events.js";
 import type { ApprovalPrompt } from "../security/approval-manager.js";
+import { buildSessionReport } from "../sessions/session-report.js";
 
 export interface RunOptions {
   model?: string;
@@ -98,6 +99,11 @@ export async function executeTask(
     });
     store.updateStatus(session.id, result.success ? "completed" : "failed");
     store.finishTurn(turn.id, result.success ? "completed" : "failed");
+    events.emit(
+      event(session.id, "session.report", {
+        report: await buildSessionReport(store, session.id),
+      }),
+    );
     events.emit(
       event(session.id, "turn.completed", {
         turnId: turn.id,

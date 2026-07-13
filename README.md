@@ -45,6 +45,8 @@ Il motore di contesto indicizza il repository rispettando `.gitignore`, esclude 
 
 Per attività articolate Alexus può creare e aggiornare un piano strutturato tramite un tool validato. Il piano viene mostrato nella TUI, salvato in SQLite e recuperato con il resume; una risposta finale con step ancora aperti viene marcata come parzialmente verificata. Anche le approvazioni concesse per la sessione persistono tra turni e riavvii, limitatamente allo stesso comando e agli stessi argomenti.
 
+Ogni sessione produce inoltre un report verificabile con file modificati, inserimenti e cancellazioni, comandi di verifica, token, costo, piano e numero di approvazioni ricordate. Il report è disponibile in formato umano o JSON e viene emesso anche nel protocollo eventi.
+
 ```text
 alexus
 alexus chat
@@ -58,6 +60,7 @@ alexus sessions
 alexus sessions show <session-id> [--json]
 alexus sessions delete <session-id>
 alexus plan [session-id] [--json]
+alexus review [session-id] [--json]
 alexus status
 alexus diff
 alexus undo [session-id]
@@ -85,6 +88,7 @@ Nell'interfaccia interattiva sono disponibili:
 /plan <richiesta>
 /plan show
 /plan clear
+/review
 /goal <obiettivo>
 /clear
 /exit
