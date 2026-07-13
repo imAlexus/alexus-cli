@@ -1,0 +1,6 @@
+export { runAgentLoop } from "./agent/agent-loop.js";
+export { loadConfig, initializeWorkspace } from "./config/loader.js";
+export { resolveWorkspacePath, resolveSafeExistingPath } from "./security/path-policy.js";
+export { classifyCommand } from "./security/command-policy.js";
+export { createDefaultRegistry } from "./tools/default-registry.js";
+export { SessionStore } from "./sessions/sqlite-store.js";
