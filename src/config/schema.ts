@@ -10,6 +10,7 @@ export const configSchema = z.object({
   stream: z.boolean().default(true),
   showCost: z.boolean().default(true),
   commandTimeoutMs: z.number().int().positive().default(120_000),
+  taskTimeoutMs: z.number().int().positive().default(1_800_000),
   maxToolOutputChars: z.number().int().positive().default(50_000),
   respectGitignore: z.boolean().default(true),
   telemetry: z.literal(false).default(false),

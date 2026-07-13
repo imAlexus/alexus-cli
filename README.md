@@ -45,6 +45,7 @@ alexus run --model openai/gpt-5 --max-cost 1.50 "correggi gli errori TypeScript"
 alexus run --json "analizza il progetto"
 alexus resume [session-id]
 alexus sessions
+alexus sessions show <session-id> [--json]
 alexus sessions delete <session-id>
 alexus status
 alexus diff
@@ -64,6 +65,8 @@ alexus doctor
 La modalità predefinita è `workspace`. Letture e modifiche sono confinate alla root reale del progetto, inclusi controlli su symlink e junction. `.env`, chiavi e credenziali non vengono lette automaticamente. I processi sono avviati senza shell, con comando e argomenti separati, timeout, cancellazione e output limitato. Operazioni moderate richiedono una sessione interattiva; operazioni distruttive o di sistema vengono rifiutate.
 
 `alexus undo` usa hash pre/post modifica: se un file è cambiato dopo l'intervento dell'agente, l'undo si interrompe invece di sovrascrivere il lavoro dell'utente.
+
+Le sessioni sono organizzate come thread persistenti composti da turni e item. Messaggi, tool call e risultati vengono salvati integralmente; dopo un'interruzione, `alexus resume` chiude le operazioni rimaste in esecuzione come interrotte e continua senza rieseguire lo stesso identificatore di tool call.
 
 ## Configurazione
 

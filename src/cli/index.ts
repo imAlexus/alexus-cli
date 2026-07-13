@@ -64,17 +64,10 @@ program
       store.close();
       throw new Error("Sessione non trovata");
     }
-    const prior = store
-      .messages(session.id)
-      .slice(-30)
-      .map((m) => `${m.role}: ${m.content}`)
-      .join("\n");
     store.close();
-    await executeTask(
-      root(),
-      `Riprendi il task precedente: ${session.task}\n\nCronologia recente:\n${prior}`,
-      { resumeSessionId: session.id },
-    );
+    await executeTask(root(), `Continua il task originale: ${session.task}`, {
+      resumeSessionId: session.id,
+    });
   });
 const sessions = program.command("sessions").description("elenca o elimina sessioni");
 sessions.action(() => {
@@ -93,6 +86,29 @@ sessions
     try {
       if (!store.delete(id)) throw new Error("Sessione non trovata");
       console.log(`Eliminata ${id}`);
+    } finally {
+      store.close();
+    }
+  });
+sessions
+  .command("show")
+  .argument("<id>")
+  .option("--json")
+  .action((id: string, options: { json?: boolean }) => {
+    const store = new SessionStore(root());
+    try {
+      const session = store.get(id);
+      if (!session) throw new Error("Sessione non trovata");
+      const turns = store.turns(id).map((turn) => ({ ...turn, items: store.items(turn.id) }));
+      if (options.json) {
+        console.log(JSON.stringify({ session, turns }, null, 2));
+        return;
+      }
+      console.log(`${session.id}  ${session.status}  ${session.task}`);
+      for (const turn of turns) {
+        console.log(`  ${turn.id}  ${turn.status}  ${turn.prompt}`);
+        for (const item of turn.items) console.log(`    ${item.id}  ${item.type}  ${item.status}`);
+      }
     } finally {
       store.close();
     }

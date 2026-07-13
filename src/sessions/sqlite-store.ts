@@ -7,6 +7,7 @@ import { createTwoFilesPatch } from "diff";
 import { createId } from "../utils/ids.js";
 import { AlexusError } from "../utils/errors.js";
 import { assertSafeWritePath } from "../security/path-policy.js";
+import type OpenAI from "openai";
 
 export type SessionStatus = "running" | "completed" | "failed" | "cancelled";
 export interface StoredSession {
@@ -16,6 +17,28 @@ export interface StoredSession {
   task: string;
   status: SessionStatus;
   approvalMode: "readonly" | "workspace" | "full-access";
+  createdAt: string;
+  updatedAt: string;
+}
+export type TurnStatus = "running" | "completed" | "failed" | "cancelled";
+export interface StoredTurn {
+  id: string;
+  sessionId: string;
+  prompt: string;
+  status: TurnStatus;
+  startedAt: string;
+  completedAt?: string;
+}
+export interface StoredToolResult {
+  status: string;
+  result: unknown;
+}
+export interface StoredItem {
+  id: string;
+  turnId: string;
+  type: string;
+  status: string;
+  payload: unknown;
   createdAt: string;
   updatedAt: string;
 }
@@ -37,7 +60,22 @@ export class SessionStore {
     CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT, tool_call_id TEXT, created_at TEXT NOT NULL, FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS tool_runs (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, tool_name TEXT NOT NULL, arguments_json TEXT NOT NULL, result_json TEXT, status TEXT NOT NULL, started_at TEXT NOT NULL, completed_at TEXT, FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS file_checkpoints (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, path TEXT NOT NULL, original_hash TEXT, original_content BLOB, latest_hash TEXT, created_at TEXT NOT NULL, UNIQUE(session_id,path), FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE);
+    CREATE TABLE IF NOT EXISTS turns (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, prompt TEXT NOT NULL, status TEXT NOT NULL, started_at TEXT NOT NULL, completed_at TEXT, FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE);
+    CREATE TABLE IF NOT EXISTS items (id TEXT PRIMARY KEY, turn_id TEXT NOT NULL, type TEXT NOT NULL, status TEXT NOT NULL, payload_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(turn_id) REFERENCES turns(id) ON DELETE CASCADE);
   `);
+    this.addColumn("messages", "payload_json", "TEXT");
+    this.addColumn("messages", "turn_id", "TEXT");
+    this.addColumn("tool_runs", "turn_id", "TEXT");
+    this.addColumn("tool_runs", "item_id", "TEXT");
+    this.addColumn("tool_runs", "tool_call_id", "TEXT");
+    this.db.exec(
+      "CREATE UNIQUE INDEX IF NOT EXISTS tool_runs_call_id ON tool_runs(session_id,tool_call_id) WHERE tool_call_id IS NOT NULL",
+    );
+  }
+  private addColumn(table: string, column: string, definition: string): void {
+    const columns = this.db.pragma(`table_info(${table})`) as Array<{ name: string }>;
+    if (!columns.some((entry) => entry.name === column))
+      this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
   create(input: Pick<StoredSession, "model" | "task" | "approvalMode">): StoredSession {
     const now = new Date().toISOString();
@@ -95,44 +133,257 @@ export class SessionStore {
       .prepare("UPDATE sessions SET status=?,updated_at=? WHERE id=?")
       .run(status, new Date().toISOString(), id);
   }
-  addMessage(sessionId: string, role: string, content: string, toolCallId?: string): void {
+  createTurn(sessionId: string, prompt: string): StoredTurn {
+    const turn: StoredTurn = {
+      id: createId("turn"),
+      sessionId,
+      prompt,
+      status: "running",
+      startedAt: new Date().toISOString(),
+    };
     this.db
-      .prepare("INSERT INTO messages VALUES (?,?,?,?,?,?)")
-      .run(createId("msg"), sessionId, role, content, toolCallId ?? null, new Date().toISOString());
+      .prepare(
+        "INSERT INTO turns (id,session_id,prompt,status,started_at,completed_at) VALUES (@id,@sessionId,@prompt,@status,@startedAt,NULL)",
+      )
+      .run(turn);
+    return turn;
   }
-  messages(sessionId: string): Array<{ role: string; content: string; toolCallId?: string }> {
+  finishTurn(id: string, status: TurnStatus): void {
+    this.db
+      .prepare("UPDATE turns SET status=?,completed_at=? WHERE id=?")
+      .run(status, new Date().toISOString(), id);
+  }
+  turns(sessionId: string): StoredTurn[] {
     return (
       this.db
         .prepare(
-          "SELECT role,content,tool_call_id FROM messages WHERE session_id=? ORDER BY created_at",
+          "SELECT id,session_id,prompt,status,started_at,completed_at FROM turns WHERE session_id=? ORDER BY started_at,rowid",
         )
-        .all(sessionId) as Array<{ role: string; content: string; tool_call_id: string | null }>
-    ).map((r) => ({
-      role: r.role,
-      content: r.content,
-      ...(r.tool_call_id ? { toolCallId: r.tool_call_id } : {}),
+        .all(sessionId) as Array<Record<string, string | null>>
+    ).map((row) => ({
+      id: String(row.id),
+      sessionId: String(row.session_id),
+      prompt: String(row.prompt),
+      status: row.status as TurnStatus,
+      startedAt: String(row.started_at),
+      ...(row.completed_at ? { completedAt: String(row.completed_at) } : {}),
     }));
   }
-  startTool(sessionId: string, name: string, args: unknown): string {
-    const id = createId("run");
+  recordItem(turnId: string, type: string, status: string, payload: unknown): string {
+    const id = createId("item");
+    const now = new Date().toISOString();
     this.db
-      .prepare("INSERT INTO tool_runs VALUES (?,?,?,?,?,?,?,?)")
-      .run(
-        id,
-        sessionId,
-        name,
-        JSON.stringify(args),
-        null,
-        "running",
-        new Date().toISOString(),
-        null,
-      );
+      .prepare(
+        "INSERT INTO items (id,turn_id,type,status,payload_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?)",
+      )
+      .run(id, turnId, type, status, JSON.stringify(payload), now, now);
     return id;
   }
-  finishTool(id: string, result: unknown, status = "completed"): void {
+  items(turnId: string): StoredItem[] {
+    return (
+      this.db
+        .prepare(
+          "SELECT id,turn_id,type,status,payload_json,created_at,updated_at FROM items WHERE turn_id=? ORDER BY created_at,rowid",
+        )
+        .all(turnId) as Array<{
+        id: string;
+        turn_id: string;
+        type: string;
+        status: string;
+        payload_json: string;
+        created_at: string;
+        updated_at: string;
+      }>
+    ).map((row) => ({
+      id: row.id,
+      turnId: row.turn_id,
+      type: row.type,
+      status: row.status,
+      payload: JSON.parse(row.payload_json) as unknown,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+  }
+  addMessage(
+    sessionId: string,
+    message: OpenAI.Chat.Completions.ChatCompletionMessageParam,
+    turnId?: string,
+  ): void {
+    const toolCallId = message.role === "tool" ? message.tool_call_id : null;
+    const content =
+      typeof message.content === "string" ? message.content : JSON.stringify(message.content);
     this.db
-      .prepare("UPDATE tool_runs SET result_json=?,status=?,completed_at=? WHERE id=?")
-      .run(JSON.stringify(result), status, new Date().toISOString(), id);
+      .prepare(
+        "INSERT INTO messages (id,session_id,role,content,tool_call_id,created_at,payload_json,turn_id) VALUES (?,?,?,?,?,?,?,?)",
+      )
+      .run(
+        createId("msg"),
+        sessionId,
+        message.role,
+        content,
+        toolCallId,
+        new Date().toISOString(),
+        JSON.stringify(message),
+        turnId ?? null,
+      );
+  }
+  messages(sessionId: string): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+    return (
+      this.db
+        .prepare(
+          "SELECT role,content,tool_call_id,payload_json FROM messages WHERE session_id=? ORDER BY created_at,rowid",
+        )
+        .all(sessionId) as Array<{
+        role: string;
+        content: string;
+        tool_call_id: string | null;
+        payload_json: string | null;
+      }>
+    ).map((row) => {
+      if (row.payload_json)
+        return JSON.parse(row.payload_json) as OpenAI.Chat.Completions.ChatCompletionMessageParam;
+      if (row.role === "tool" && row.tool_call_id)
+        return { role: "tool", content: row.content, tool_call_id: row.tool_call_id };
+      if (row.role === "system" || row.role === "user" || row.role === "assistant")
+        return { role: row.role, content: row.content };
+      throw new AlexusError("DATABASE_ERROR", `Ruolo messaggio non valido: ${row.role}`);
+    });
+  }
+  startTool(
+    sessionId: string,
+    turnId: string,
+    toolCallId: string,
+    name: string,
+    args: unknown,
+  ): { runId: string; itemId: string } {
+    const runId = createId("run");
+    const itemId = createId("item");
+    const now = new Date().toISOString();
+    this.db.transaction(() => {
+      this.db
+        .prepare(
+          "INSERT INTO items (id,turn_id,type,status,payload_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?)",
+        )
+        .run(
+          itemId,
+          turnId,
+          "tool_call",
+          "running",
+          JSON.stringify({ toolCallId, name, args }),
+          now,
+          now,
+        );
+      this.db
+        .prepare(
+          "INSERT INTO tool_runs (id,session_id,tool_name,arguments_json,result_json,status,started_at,completed_at,turn_id,item_id,tool_call_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        )
+        .run(
+          runId,
+          sessionId,
+          name,
+          JSON.stringify(args),
+          null,
+          "running",
+          now,
+          null,
+          turnId,
+          itemId,
+          toolCallId,
+        );
+    })();
+    return { runId, itemId };
+  }
+  finishTool(id: string, result: unknown, status = "completed"): void {
+    const now = new Date().toISOString();
+    this.db.transaction(() => {
+      const row = this.db.prepare("SELECT item_id FROM tool_runs WHERE id=?").get(id) as
+        { item_id: string | null } | undefined;
+      this.db
+        .prepare("UPDATE tool_runs SET result_json=?,status=?,completed_at=? WHERE id=?")
+        .run(JSON.stringify(result), status, now, id);
+      if (row?.item_id)
+        this.db
+          .prepare("UPDATE items SET status=?,payload_json=?,updated_at=? WHERE id=?")
+          .run(
+            status === "completed" ? "completed" : "failed",
+            JSON.stringify(result),
+            now,
+            row.item_id,
+          );
+    })();
+  }
+  toolResult(sessionId: string, toolCallId: string): StoredToolResult | undefined {
+    const row = this.db
+      .prepare(
+        "SELECT status,result_json FROM tool_runs WHERE session_id=? AND tool_call_id=? AND result_json IS NOT NULL",
+      )
+      .get(sessionId, toolCallId) as { status: string; result_json: string } | undefined;
+    return row ? { status: row.status, result: JSON.parse(row.result_json) as unknown } : undefined;
+  }
+  recoverInterrupted(sessionId: string): number {
+    const rows = this.db
+      .prepare(
+        `SELECT id,turn_id,item_id,tool_call_id,tool_name,status,result_json
+         FROM tool_runs tr
+         WHERE session_id=? AND (
+           status='running' OR (
+             status='interrupted' AND tool_call_id IS NOT NULL AND NOT EXISTS (
+               SELECT 1 FROM messages m
+               WHERE m.session_id=tr.session_id AND m.tool_call_id=tr.tool_call_id
+             )
+           )
+         )`,
+      )
+      .all(sessionId) as Array<{
+      id: string;
+      turn_id: string | null;
+      item_id: string | null;
+      tool_call_id: string | null;
+      tool_name: string;
+      status: string;
+      result_json: string | null;
+    }>;
+    for (const row of rows) {
+      const result = row.result_json
+        ? (JSON.parse(row.result_json) as unknown)
+        : { success: false, error: `Tool ${row.tool_name} interrotto dal processo precedente.` };
+      const now = new Date().toISOString();
+      this.db.transaction(() => {
+        if (row.status === "running") {
+          this.db
+            .prepare(
+              "UPDATE tool_runs SET result_json=?,status='interrupted',completed_at=? WHERE id=?",
+            )
+            .run(JSON.stringify(result), now, row.id);
+          if (row.item_id)
+            this.db
+              .prepare("UPDATE items SET status='failed',payload_json=?,updated_at=? WHERE id=?")
+              .run(JSON.stringify(result), now, row.item_id);
+        }
+        if (row.tool_call_id) {
+          const message: OpenAI.Chat.Completions.ChatCompletionToolMessageParam = {
+            role: "tool",
+            tool_call_id: row.tool_call_id,
+            content: JSON.stringify(result),
+          };
+          this.db
+            .prepare(
+              "INSERT INTO messages (id,session_id,role,content,tool_call_id,created_at,payload_json,turn_id) VALUES (?,?,?,?,?,?,?,?)",
+            )
+            .run(
+              createId("msg"),
+              sessionId,
+              "tool",
+              message.content,
+              row.tool_call_id,
+              now,
+              JSON.stringify(message),
+              row.turn_id,
+            );
+        }
+      })();
+    }
+    return rows.length;
   }
   async checkpoint(sessionId: string, relativePath: string): Promise<void> {
     const existing = this.db

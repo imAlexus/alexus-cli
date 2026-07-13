@@ -1,6 +1,6 @@
 {
   "name": "@alexus/cli",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Secure, provider-independent coding agent CLI powered by OpenRouter",
   "repository": {
     "type": "git",

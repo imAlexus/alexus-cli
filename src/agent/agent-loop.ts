@@ -18,6 +18,7 @@ export interface AgentInput {
   tools: ToolRegistry;
   store: SessionStore;
   session: StoredSession;
+  turnId: string;
   events: EventBus;
   signal: AbortSignal;
   json: boolean;
@@ -74,14 +75,19 @@ async function generateWithRetry(
 }
 export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
   const context = await buildProjectContext(input.workspaceRoot);
-  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = input.resumeMessages ?? [
-    { role: "system", content: `${SYSTEM_PROMPT}\n\nContesto iniziale:\n${context}` },
-    { role: "user", content: input.task },
-  ];
-  if (!input.resumeMessages) {
-    input.store.addMessage(input.session.id, "system", SYSTEM_PROMPT);
-    input.store.addMessage(input.session.id, "user", input.task);
-  }
+  const systemMessage: OpenAI.Chat.Completions.ChatCompletionSystemMessageParam = {
+    role: "system",
+    content: `${SYSTEM_PROMPT}\n\nContesto iniziale:\n${context}`,
+  };
+  const userMessage: OpenAI.Chat.Completions.ChatCompletionUserMessageParam = {
+    role: "user",
+    content: input.task,
+  };
+  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = input.resumeMessages
+    ? [...input.resumeMessages, userMessage]
+    : [systemMessage, userMessage];
+  if (!input.resumeMessages) input.store.addMessage(input.session.id, systemMessage, input.turnId);
+  input.store.addMessage(input.session.id, userMessage, input.turnId);
   const approval = new ApprovalManager(
     input.config.approvalMode,
     Boolean(process.stdin.isTTY),
@@ -100,7 +106,8 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
       );
     const response = await generateWithRetry(input, messages);
     messages.push(response.message);
-    input.store.addMessage(input.session.id, "assistant", response.text);
+    input.store.addMessage(input.session.id, response.message, input.turnId);
+    input.store.recordItem(input.turnId, "assistant_message", "completed", response.message);
     if (response.usage) {
       cost += response.usage.cost ?? 0;
       input.events.emit(
@@ -119,7 +126,7 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
     for (const call of response.toolCalls) {
       const signature = `${call.name}:${call.arguments}`;
       signatures.push(signature);
-      if (signatures.slice(-4).every((x) => x === signature))
+      if (signatures.length >= 4 && signatures.slice(-4).every((x) => x === signature))
         throw new AlexusError(
           "TOOL_VALIDATION_FAILED",
           `Loop rilevato: tool ${call.name} ripetuto.`,
@@ -137,6 +144,27 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
           arguments: args,
         }),
       );
+      const previous = input.store.toolResult(input.session.id, call.id);
+      if (previous) {
+        const reusedMessage: OpenAI.Chat.Completions.ChatCompletionToolMessageParam = {
+          role: "tool",
+          tool_call_id: call.id,
+          content: JSON.stringify(previous.result),
+        };
+        messages.push(reusedMessage);
+        input.store.addMessage(input.session.id, reusedMessage, input.turnId);
+        input.store.recordItem(input.turnId, "tool_reused", "completed", {
+          toolCallId: call.id,
+          status: previous.status,
+        });
+        input.events.emit(
+          event(input.session.id, "tool.reused", {
+            toolCallId: call.id,
+            status: previous.status,
+          }),
+        );
+        continue;
+      }
       const decision = await approval.evaluate(call.name, args);
       if (decision.risk !== "safe")
         input.events.emit(
@@ -149,11 +177,26 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
         );
       if (!decision.allowed) {
         const result = { success: false, error: `Rifiutato: ${decision.reason}` };
-        messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
-        input.store.addMessage(input.session.id, "tool", JSON.stringify(result), call.id);
+        const rejectedMessage: OpenAI.Chat.Completions.ChatCompletionToolMessageParam = {
+          role: "tool",
+          tool_call_id: call.id,
+          content: JSON.stringify(result),
+        };
+        messages.push(rejectedMessage);
+        input.store.addMessage(input.session.id, rejectedMessage, input.turnId);
+        input.store.recordItem(input.turnId, "approval", "denied", {
+          toolCallId: call.id,
+          reason: decision.reason,
+        });
         continue;
       }
-      const runId = input.store.startTool(input.session.id, call.name, args);
+      const { runId } = input.store.startTool(
+        input.session.id,
+        input.turnId,
+        call.id,
+        call.name,
+        args,
+      );
       const started = Date.now();
       if (call.name === "run_command")
         input.events.emit(event(input.session.id, "verification.started", { command: args }));
@@ -170,8 +213,13 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
         });
         const payload = { success: true, result };
         input.store.finishTool(runId, payload);
-        messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(payload) });
-        input.store.addMessage(input.session.id, "tool", JSON.stringify(payload), call.id);
+        const completedMessage: OpenAI.Chat.Completions.ChatCompletionToolMessageParam = {
+          role: "tool",
+          tool_call_id: call.id,
+          content: JSON.stringify(payload),
+        };
+        messages.push(completedMessage);
+        input.store.addMessage(input.session.id, completedMessage, input.turnId);
         if (call.name === "apply_patch" || call.name === "write_file") {
           mutations++;
           const changed = result as { path?: unknown };
@@ -208,8 +256,13 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
             }),
           );
         input.store.finishTool(runId, payload, "failed");
-        messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(payload) });
-        input.store.addMessage(input.session.id, "tool", JSON.stringify(payload), call.id);
+        const failedMessage: OpenAI.Chat.Completions.ChatCompletionToolMessageParam = {
+          role: "tool",
+          tool_call_id: call.id,
+          content: JSON.stringify(payload),
+        };
+        messages.push(failedMessage);
+        input.store.addMessage(input.session.id, failedMessage, input.turnId);
         input.events.emit(
           event(input.session.id, "tool.completed", {
             toolCallId: call.id,

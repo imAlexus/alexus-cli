@@ -42,13 +42,20 @@ export async function executeTask(
   }
   const session =
     resumed ?? store.create({ model: config.model, task, approvalMode: config.approvalMode });
-  if (resumed) store.updateStatus(session.id, "running");
+  let resumeMessages: ReturnType<SessionStore["messages"]> | undefined;
+  if (resumed) {
+    store.updateStatus(session.id, "running");
+    store.recoverInterrupted(session.id);
+    resumeMessages = store.messages(session.id);
+  }
+  const turn = store.createTurn(session.id, task);
   const events = new EventBus();
   events.on(options.json ? jsonlWriter() : humanRenderer());
   events.emit(event(session.id, "session.started", { workspace: root }));
   events.emit(event(session.id, "model.selected", { provider: "openrouter", model: config.model }));
+  events.emit(event(session.id, "turn.started", { turnId: turn.id, prompt: task }));
   const controller = new AbortController();
-  const globalTimeout = setTimeout(() => controller.abort(), 30 * 60 * 1000);
+  const globalTimeout = setTimeout(() => controller.abort(), config.taskTimeoutMs);
   const cancel = () => controller.abort();
   process.once("SIGINT", cancel);
   try {
@@ -60,12 +67,22 @@ export async function executeTask(
       tools: createDefaultRegistry(),
       store,
       session,
+      turnId: turn.id,
       events,
       signal: controller.signal,
       json: Boolean(options.json),
+      ...(resumeMessages ? { resumeMessages } : {}),
       ...(options.maxCost !== undefined ? { maxCost: options.maxCost } : {}),
     });
     store.updateStatus(session.id, result.success ? "completed" : "failed");
+    store.finishTurn(turn.id, result.success ? "completed" : "failed");
+    events.emit(
+      event(session.id, "turn.completed", {
+        turnId: turn.id,
+        success: result.success,
+        verification: result.verification,
+      }),
+    );
     events.emit(
       event(session.id, "session.completed", {
         success: result.success,
@@ -83,6 +100,13 @@ export async function executeTask(
     if (!result.success) process.exitCode = 1;
   } catch (error) {
     store.updateStatus(session.id, controller.signal.aborted ? "cancelled" : "failed");
+    store.finishTurn(turn.id, controller.signal.aborted ? "cancelled" : "failed");
+    events.emit(
+      event(session.id, "turn.failed", {
+        turnId: turn.id,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
     events.emit(
       event(session.id, "session.completed", {
         success: false,
