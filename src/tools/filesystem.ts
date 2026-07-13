@@ -60,7 +60,8 @@ export const listFilesTool: ToolDefinition<typeof listSchema> = {
       ignore: baseIgnore,
       followSymbolicLinks: false,
     });
-    const prefix = path.relative(c.workspaceRoot, root).replaceAll("\\", "/");
+    const logicalRoot = path.resolve(c.workspaceRoot, input.path);
+    const prefix = path.relative(c.workspaceRoot, logicalRoot).replaceAll("\\", "/");
     const workspaceEntries = entries.map((entry) => (prefix ? `${prefix}/${entry}` : entry));
     const allowed = new Set(await respectGitignore(c.workspaceRoot, workspaceEntries));
     entries = entries.filter((_, index) => allowed.has(workspaceEntries[index]!));
