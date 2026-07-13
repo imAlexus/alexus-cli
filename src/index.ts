@@ -9,3 +9,4 @@ export { compactConversation } from "./context/compactor.js";
 export { buildRepositoryMap } from "./context/repository-map.js";
 export { rankRepositoryFiles } from "./context/file-ranker.js";
 export { buildSessionReport, formatSessionReport } from "./sessions/session-report.js";
+export { buildSessionExport, sanitizeSessionValue } from "./sessions/session-export.js";

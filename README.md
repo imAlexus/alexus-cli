@@ -60,6 +60,7 @@ alexus context "correggi il login"
 alexus resume [session-id]
 alexus sessions
 alexus sessions show <session-id> [--json]
+alexus sessions export <session-id> [-o session.json]
 alexus sessions delete <session-id>
 alexus plan [session-id] [--json]
 alexus review [session-id] [--json]
@@ -107,6 +108,8 @@ La modalità predefinita è `workspace`. Letture e modifiche sono confinate alla
 `alexus undo` usa hash pre/post modifica: se un file è cambiato dopo l'intervento dell'agente, l'undo si interrompe invece di sovrascrivere il lavoro dell'utente.
 
 Le sessioni sono organizzate come thread persistenti composti da turni e item. Messaggi, tool call e risultati vengono salvati integralmente; dopo un'interruzione, `alexus resume` chiude le operazioni rimaste in esecuzione come interrotte e continua senza rieseguire lo stesso identificatore di tool call.
+
+`alexus sessions export` produce un JSON portabile con report, piano, turni e item. Il percorso locale del workspace viene rimosso e chiavi API, token, password e altri segreti riconoscibili vengono sostituiti con `[REDACTED]`; `-o` rifiuta di sovrascrivere file esistenti.
 
 ## Configurazione
 

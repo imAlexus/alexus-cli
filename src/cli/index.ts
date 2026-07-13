@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { writeFile } from "node:fs/promises";
 import {
   initializeWorkspace,
   isWritable,
@@ -17,6 +18,8 @@ import { SessionStore } from "../sessions/sqlite-store.js";
 import { listModels } from "../providers/openrouter/models.js";
 import { buildProjectContextReport } from "../context/context-builder.js";
 import { buildSessionReport, formatSessionReport } from "../sessions/session-report.js";
+import { buildSessionExport } from "../sessions/session-export.js";
+import { resolveWorkspacePath } from "../security/path-policy.js";
 
 const program = new Command();
 program
@@ -121,6 +124,27 @@ sessions
         for (const item of turn.items) console.log(`    ${item.id}  ${item.type}  ${item.status}`);
       }
       if (plan) for (const step of plan.steps) console.log(`  [${step.status}] ${step.step}`);
+    } finally {
+      store.close();
+    }
+  });
+sessions
+  .command("export")
+  .description("esporta una sessione in JSON portabile con segreti rimossi")
+  .argument("<id>")
+  .option("-o, --output <file>")
+  .action(async (id: string, options: { output?: string }) => {
+    const store = new SessionStore(root());
+    try {
+      const exported = await buildSessionExport(store, id);
+      const json = `${JSON.stringify(exported, null, 2)}\n`;
+      if (!options.output) {
+        process.stdout.write(json);
+        return;
+      }
+      const destination = resolveWorkspacePath(root(), options.output);
+      await writeFile(destination, json, { flag: "wx" });
+      console.log(`Esportata in ${path.relative(root(), destination)}`);
     } finally {
       store.close();
     }
