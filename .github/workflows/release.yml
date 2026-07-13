@@ -20,6 +20,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - run: pnpm build
+      - name: Validate release metadata and installer
+        run: |
+          node -e "const p=require('./package.json'); if ('v'+p.version !== process.env.GITHUB_REF_NAME) process.exit(1)"
+          sh -n install.sh
       - name: Pack
         run: |
           mkdir release
@@ -30,5 +34,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view "$GITHUB_REF_NAME" || gh release create "$GITHUB_REF_NAME" --title "Alexus CLI $GITHUB_REF_NAME" --generate-notes
+          gh release view "$GITHUB_REF_NAME" || gh release create "$GITHUB_REF_NAME" --title "Alexus CLI $GITHUB_REF_NAME" --generate-notes --latest
           gh release upload "$GITHUB_REF_NAME" release/* --clobber

@@ -1,6 +1,6 @@
 # Alexus CLI
 
-Alexus è un agente CLI proprietario per lavorare su repository locali con modelli OpenRouter dotati di tool calling. Ogni accesso passa attraverso tool validati, i percorsi restano confinati al workspace e ogni modifica viene registrata in SQLite con checkpoint per un undo conservativo.
+Alexus è un agente CLI open source per lavorare su repository locali con modelli OpenRouter dotati di tool calling. Ogni accesso passa attraverso tool validati, i percorsi restano confinati al workspace e ogni modifica viene registrata in SQLite con checkpoint per un undo conservativo.
 
 ## Requisiti
 
@@ -20,6 +20,16 @@ irm https://raw.githubusercontent.com/imAlexus/alexus-cli/main/install.ps1 | iex
 ```
 
 L'installer richiede Node.js 22+, scarica l'ultima release, verifica il checksum SHA-256, installa Alexus globalmente e configura il `PATH` utente quando necessario.
+
+### Linux e macOS — installazione rapida
+
+Da una shell:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/imAlexus/alexus-cli/main/install.sh | sh
+```
+
+L'installer richiede Node.js 22+, scarica l'ultima release, verifica il checksum con `sha256sum` o `shasum` e installa Alexus globalmente tramite npm. Se la directory globale non è scrivibile usa automaticamente `~/.local` e configura il profilo della shell; in quel caso basta aprire un nuovo terminale. Per installare una versione specifica, scarica lo script e passagli il numero di versione come primo argomento.
 
 ### Sviluppo locale
 
@@ -125,3 +135,5 @@ pnpm build
 ```
 
 La telemetria è disattivata e il client iniziale usa esclusivamente `https://openrouter.ai/api/v1`.
+
+Consulta [CHANGELOG.md](CHANGELOG.md) per le modifiche delle release e [SECURITY.md](SECURITY.md) per segnalare vulnerabilità in modo privato.
