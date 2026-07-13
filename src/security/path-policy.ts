@@ -14,6 +14,7 @@ export function resolveWorkspacePath(root: string, requested: string): string {
   if (
     !requested ||
     path.isAbsolute(requested) ||
+    /^[a-zA-Z]:[\\/]/.test(requested) ||
     requested.includes("\0") ||
     /^\\\\/.test(requested)
   )
