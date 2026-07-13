@@ -40,6 +40,7 @@ pnpm link --global
 $env:OPENROUTER_API_KEY = "sk-or-v1-..."
 alexus init
 alexus provider
+alexus update
 alexus model set anthropic/claude-sonnet-4
 alexus doctor
 ```
@@ -50,7 +51,9 @@ Su cmd.exe usare `set OPENROUTER_API_KEY=sk-or-v1-...`; su Linux/macOS usare `ex
 
 Esegui `alexus` nella cartella del progetto per aprire l'interfaccia interattiva. La risposta viene mostrata in streaming, le operazioni sui file e i comandi appaiono in un pannello dedicato e le azioni a rischio chiedono conferma con `y` (una volta), `a` (per la sessione) o `n` (rifiuta).
 
-`alexus provider` mostra i provider disponibili, permette di scegliere OpenRouter e richiede la chiave API con input mascherato. Le credenziali vengono salvate separatamente in `~/.alexus/credentials.json` con accesso limitato all'utente; `OPENROUTER_API_KEY`, quando presente, ha priorità.
+`alexus provider` mostra i provider disponibili, permette di scegliere OpenRouter e richiede la chiave API con input mascherato. Le credenziali vengono salvate separatamente in `~/.alexus/credentials.json` con accesso limitato all'utente. Una chiave configurata esplicitamente in Alexus ha priorità; `OPENROUTER_API_KEY` resta disponibile come fallback.
+
+`alexus update` controlla l'ultima release GitHub, scarica tarball e checksum SHA-256 e aggiorna autonomamente l'installazione globale. Usa `alexus update --check` per controllare senza installare.
 
 Alexus rileva automaticamente ecosistema, framework, package manager e script disponibili. Dopo una modifica, se il modello non ha già verificato il risultato, esegue una selezione sicura di formatter check, lint, typecheck, test e build. Per modifiche alla sola documentazione evita verifiche inutili; per modifiche limitate ai test evita la build completa. Output dei processi, token e costo cumulativo sono visibili in tempo reale e registrati negli eventi JSONL.
 
@@ -81,6 +84,7 @@ alexus status
 alexus diff
 alexus undo [session-id]
 alexus config
+alexus update [--check]
 alexus provider
 alexus provider list
 alexus provider set openrouter
@@ -108,12 +112,14 @@ Nell'interfaccia interattiva sono disponibili:
 /plan show
 /plan clear
 /review
+/provider
+/model
 /goal <obiettivo>
 /clear
 /exit
 ```
 
-Digitando `/` nel prompt appare l'elenco dei comandi compatibili. Usa `↑` e `↓` per scegliere e `Tab` per completare. `Ctrl+O` mostra o nasconde gli argomenti degli strumenti. `Ctrl+C` annulla il task in corso; se Alexus è inattivo, chiude l'interfaccia. `Shift+Enter` inserisce una nuova riga nel prompt.
+Digitando `/` nel prompt appare l'elenco dei comandi compatibili. Usa `↑` e `↓` per scegliere e `Tab` per completare. `/provider` consente di sostituire la chiave API e prosegue direttamente con la scelta del modello. `/model` cerca i modelli OpenRouter compatibili con i tool: puoi selezionarne uno, filtrare per nome oppure digitare direttamente un ID. `Ctrl+O` mostra o nasconde gli argomenti degli strumenti. `Ctrl+C` annulla il task in corso; se Alexus è inattivo, chiude l'interfaccia. `Shift+Enter` inserisce una nuova riga nel prompt.
 
 `--json` riserva stdout a eventi JSONL versionati; diagnostica e prompt di approvazione vanno su stderr.
 

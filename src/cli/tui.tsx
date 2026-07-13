@@ -16,6 +16,9 @@ import { PACKAGE_VERSION } from "../utils/version.js";
 import { detectProject, formatProjectProfile } from "../project/project-detector.js";
 import { buildProjectContextReport, type ContextStats } from "../context/context-builder.js";
 import { buildSessionReport, formatSessionReport } from "../sessions/session-report.js";
+import { providerApiKey, saveProviderApiKey } from "../config/credentials.js";
+import { listModels } from "../providers/openrouter/models.js";
+import type { AlexusModel } from "../providers/openrouter/types.js";
 
 interface ToolView {
   id: string;
@@ -36,6 +39,29 @@ interface UsageView {
 interface PlanView {
   explanation?: string;
   steps: StoredPlanStep[];
+}
+
+type ProviderDialog =
+  | { stage: "provider" }
+  | { stage: "api-key"; apiKey: string }
+  | { stage: "loading-models" }
+  | { stage: "model"; query: string; models: AlexusModel[]; selected: number };
+
+export function filterProviderModels(models: AlexusModel[], query: string): AlexusModel[] {
+  const normalized = query.trim().toLowerCase();
+  return models
+    .filter(
+      (model) =>
+        model.tools &&
+        (!normalized ||
+          model.id.toLowerCase().includes(normalized) ||
+          model.name.toLowerCase().includes(normalized)),
+    )
+    .sort((left, right) => {
+      const leftStarts = left.id.toLowerCase().startsWith(normalized) ? 1 : 0;
+      const rightStarts = right.id.toLowerCase().startsWith(normalized) ? 1 : 0;
+      return rightStarts - leftStarts || left.id.localeCompare(right.id);
+    });
 }
 
 function eventPlan(value: unknown): StoredPlanStep[] | undefined {
@@ -73,7 +99,8 @@ export const SLASH_COMMANDS = [
   { command: "/compact", description: "compatta la conversazione" },
   { command: "/new", description: "inizia una nuova conversazione" },
   { command: "/review", description: "report verificabile della sessione" },
-  { command: "/model", description: "mostra il modello attivo" },
+  { command: "/provider", description: "cambia provider o chiave API" },
+  { command: "/model", description: "cerca o cambia modello" },
   { command: "/permissions", description: "cambia i permessi" },
   { command: "/diff", description: "mostra le modifiche" },
   { command: "/undo", description: "annulla le modifiche della sessione" },
@@ -208,6 +235,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
   const [sessionId, setSessionId] = useState<string>();
   const [compactNext, setCompactNext] = useState(false);
   const [plan, setPlan] = useState<PlanView>();
+  const [providerDialog, setProviderDialog] = useState<ProviderDialog>();
   const abortRef = useRef<AbortController | undefined>(undefined);
 
   useEffect(() => {
@@ -319,11 +347,141 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
     [approval],
   );
 
+  const loadModelDialog = useCallback(async () => {
+    setProviderDialog({ stage: "loading-models" });
+    setNotice("Caricamento modelli OpenRouter…");
+    try {
+      const models = (await listModels(workspaceRoot, true)).filter((model) => model.tools);
+      setProviderDialog({ stage: "model", query: "", models, selected: 0 });
+      setNotice(`${models.length} modelli con tool calling disponibili.`);
+    } catch (error) {
+      setProviderDialog(undefined);
+      setNotice(error instanceof Error ? error.message : String(error));
+    }
+  }, [workspaceRoot]);
+
+  const selectModel = useCallback(
+    async (modelId: string) => {
+      const current = await loadConfig(workspaceRoot);
+      const updated: AlexusConfig = { ...current, model: modelId };
+      await saveProjectConfig(workspaceRoot, updated);
+      setConfig(updated);
+      setProviderDialog(undefined);
+      setNotice(`Modello impostato: ${modelId}`);
+    },
+    [workspaceRoot],
+  );
+
   useInput((input, key) => {
     if (approval) {
       if (input === "y") answerApproval("once");
       if (input === "a") answerApproval("session");
       if (input === "n" || key.escape || (key.ctrl && input === "c")) answerApproval("deny");
+      return;
+    }
+    if (providerDialog) {
+      if (key.escape || (key.ctrl && input === "c")) {
+        setProviderDialog(undefined);
+        setNotice("Configurazione provider annullata.");
+        return;
+      }
+      if (providerDialog.stage === "provider") {
+        if (key.return || input === "1") setProviderDialog({ stage: "api-key", apiKey: "" });
+        return;
+      }
+      if (providerDialog.stage === "api-key") {
+        if (key.return) {
+          const apiKey = providerDialog.apiKey.trim();
+          if (apiKey.length < 12) {
+            setNotice("La chiave API inserita non sembra valida.");
+            return;
+          }
+          setProviderDialog({ stage: "loading-models" });
+          void saveProviderApiKey("openrouter", apiKey)
+            .then(() => {
+              process.env.OPENROUTER_API_KEY = apiKey;
+              setNotice("Chiave OpenRouter salvata. Caricamento modelli…");
+              return loadModelDialog();
+            })
+            .catch((error: unknown) => {
+              setProviderDialog(undefined);
+              setNotice(error instanceof Error ? error.message : String(error));
+            });
+          return;
+        }
+        if (key.backspace || key.delete) {
+          setProviderDialog({
+            stage: "api-key",
+            apiKey: providerDialog.apiKey.slice(0, -1),
+          });
+          return;
+        }
+        if (input && !key.ctrl && !key.meta)
+          setProviderDialog({
+            stage: "api-key",
+            apiKey: `${providerDialog.apiKey}${input}`,
+          });
+        return;
+      }
+      if (providerDialog.stage === "model") {
+        const matches = filterProviderModels(providerDialog.models, providerDialog.query).slice(
+          0,
+          8,
+        );
+        if (key.downArrow) {
+          setProviderDialog({
+            ...providerDialog,
+            selected: matches.length ? (providerDialog.selected + 1) % matches.length : 0,
+          });
+          return;
+        }
+        if (key.upArrow) {
+          setProviderDialog({
+            ...providerDialog,
+            selected: matches.length
+              ? (providerDialog.selected - 1 + matches.length) % matches.length
+              : 0,
+          });
+          return;
+        }
+        if (key.tab && matches.length) {
+          setProviderDialog({
+            ...providerDialog,
+            query: matches[providerDialog.selected % matches.length]!.id,
+            selected: 0,
+          });
+          return;
+        }
+        if (key.return) {
+          const modelId =
+            providerDialog.query.trim() || matches[providerDialog.selected % matches.length]?.id;
+          if (!modelId) {
+            setNotice("Digita un ID modello oppure selezionane uno.");
+            return;
+          }
+          setProviderDialog({ stage: "loading-models" });
+          void selectModel(modelId).catch((error: unknown) => {
+            setProviderDialog(undefined);
+            setNotice(error instanceof Error ? error.message : String(error));
+          });
+          return;
+        }
+        if (key.backspace || key.delete) {
+          setProviderDialog({
+            ...providerDialog,
+            query: providerDialog.query.slice(0, -1),
+            selected: 0,
+          });
+          return;
+        }
+        if (input && !key.ctrl && !key.meta)
+          setProviderDialog({
+            ...providerDialog,
+            query: `${providerDialog.query}${input}`,
+            selected: 0,
+          });
+        return;
+      }
       return;
     }
     if (key.ctrl && input === "o") setExpanded((current) => !current);
@@ -436,14 +594,26 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       }
       if (command === "/help") {
         setNotice(
-          "/status  /context [task]  /compact  /new  /review  /model  /permissions <mode>  /diff  /undo  /sessions  /plan <task>|show|clear  /goal <task>  /clear  /exit\nCtrl+O dettagli tool · Ctrl+C annulla/esce · Shift+Enter nuova riga",
+          "/status  /context [task]  /compact  /new  /review  /provider  /model  /permissions <mode>  /diff  /undo  /sessions  /plan <task>|show|clear  /goal <task>  /clear  /exit\nCtrl+O dettagli tool · Ctrl+C annulla/esce · Shift+Enter nuova riga",
         );
         return true;
       }
-      if (command === "/status" || command === "/model") {
+      if (command === "/provider") {
+        setProviderDialog({ stage: "provider" });
+        setNotice("Seleziona il provider da configurare.");
+        return true;
+      }
+      if (command === "/model") {
+        if (!providerApiKey("openrouter")) {
+          setProviderDialog({ stage: "provider" });
+          setNotice("Configura prima la chiave OpenRouter.");
+        } else await loadModelDialog();
+        return true;
+      }
+      if (command === "/status") {
         const current = await loadConfig(workspaceRoot);
         setConfig(current);
-        const profile = command === "/status" ? await detectProject(workspaceRoot) : undefined;
+        const profile = await detectProject(workspaceRoot);
         setNotice(
           `Model: ${current.model}\nMode: ${current.approvalMode}\nMax steps: ${current.maxSteps}${profile ? `\n${formatProjectProfile(profile)}` : ""}`,
         );
@@ -497,7 +667,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       }
       return false;
     },
-    [exit, sessionId, showDiff, workspaceRoot],
+    [exit, loadModelDialog, sessionId, showDiff, workspaceRoot],
   );
 
   const submit = useCallback(
@@ -646,7 +816,68 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       <Box marginY={1}>
         <Text dimColor>{notice}</Text>
       </Box>
-      {approval ? (
+      {providerDialog ? (
+        <Box borderStyle="double" borderColor="cyan" paddingX={1} flexDirection="column">
+          {providerDialog.stage === "provider" ? (
+            <>
+              <Text bold>Provider disponibili</Text>
+              <Text color="cyan">› 1. OpenRouter</Text>
+              <Text dimColor>Invio seleziona · Esc annulla</Text>
+            </>
+          ) : providerDialog.stage === "api-key" ? (
+            <>
+              <Text bold>Chiave API OpenRouter</Text>
+              <Text>{"•".repeat(providerDialog.apiKey.length)} </Text>
+              <Text dimColor>Invio salva · Esc annulla</Text>
+            </>
+          ) : providerDialog.stage === "loading-models" ? (
+            <Text color="yellow">
+              <Spinner type="dots" /> Caricamento…
+            </Text>
+          ) : (
+            <>
+              <Text bold>Seleziona modello OpenRouter</Text>
+              <Text>
+                Cerca o digita ID: <Text color="cyan">{providerDialog.query} </Text>
+              </Text>
+              {filterProviderModels(providerDialog.models, providerDialog.query)
+                .slice(0, 8)
+                .map((model, index) => (
+                  <Text
+                    key={model.id}
+                    {...(index ===
+                    providerDialog.selected %
+                      Math.max(
+                        1,
+                        Math.min(
+                          8,
+                          filterProviderModels(providerDialog.models, providerDialog.query).length,
+                        ),
+                      )
+                      ? { color: "cyan" as const, bold: true }
+                      : {})}
+                  >
+                    {index ===
+                    providerDialog.selected %
+                      Math.max(
+                        1,
+                        Math.min(
+                          8,
+                          filterProviderModels(providerDialog.models, providerDialog.query).length,
+                        ),
+                      )
+                      ? "›"
+                      : " "}{" "}
+                    {model.id} <Text dimColor>— {model.name}</Text>
+                  </Text>
+                ))}
+              <Text dimColor>
+                ↑↓ seleziona · Tab copia ID · Invio usa testo/selezione · Esc annulla
+              </Text>
+            </>
+          )}
+        </Box>
+      ) : approval ? (
         <Box borderStyle="double" borderColor="yellow" paddingX={1} flexDirection="column">
           <Text bold>
             Approvazione richiesta: {approval.request.command} {approval.request.args.join(" ")}
@@ -657,7 +888,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
           <Text>[y] una volta [a] sessione [n] rifiuta</Text>
         </Box>
       ) : (
-        <Composer active={!busy} onSubmit={(value) => void submit(value)} />
+        <Composer active={!busy && !providerDialog} onSubmit={(value) => void submit(value)} />
       )}
     </Box>
   );

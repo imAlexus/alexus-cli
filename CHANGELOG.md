@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0 — 2026-07-14
+
+- Aggiornamento autonomo e verificato tramite `alexus update`.
+- Dialogo `/provider` nella TUI per sostituire la chiave OpenRouter con input mascherato.
+- Ricerca e selezione dei modelli compatibili tramite `/model`, con supporto per ID digitati liberamente.
+
 ## 1.1.0 — 2026-07-14
 
 - Configurazione guidata dei provider tramite `alexus provider` con chiave mascherata.

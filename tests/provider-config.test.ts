@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { credentialsPath, providerApiKey, saveProviderApiKey } from "../src/config/credentials.js";
-import { slashCommandSuggestions } from "../src/cli/tui.js";
+import { filterProviderModels, slashCommandSuggestions } from "../src/cli/tui.js";
 
 const roots: string[] = [];
 const originalHome = process.env.ALEXUS_HOME;
@@ -18,7 +18,7 @@ afterEach(async () => {
 });
 
 describe("provider configuration", () => {
-  it("stores provider credentials separately and prefers the environment", async () => {
+  it("stores provider credentials separately and prefers an explicit Alexus setup", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "alexus-credentials-"));
     roots.push(root);
     process.env.ALEXUS_HOME = root;
@@ -31,7 +31,7 @@ describe("provider configuration", () => {
     if (process.platform !== "win32")
       expect((await stat(credentialsPath())).mode & 0o777).toBe(0o600);
     process.env.OPENROUTER_API_KEY = "environment-secret-key";
-    expect(providerApiKey("openrouter")).toBe("environment-secret-key");
+    expect(providerApiKey("openrouter")).toBe("stored-secret-key");
   });
 
   it("filters slash commands as the user types", () => {
@@ -41,5 +41,30 @@ describe("provider configuration", () => {
       "/compact",
     ]);
     expect(slashCommandSuggestions("ordinary task")).toEqual([]);
+  });
+
+  it("searches only models compatible with Alexus tools", () => {
+    const models = [
+      {
+        id: "anthropic/claude-test",
+        name: "Claude Test",
+        contextLength: 1,
+        pricing: {},
+        supportedParameters: ["tools"],
+        tools: true,
+      },
+      {
+        id: "example/text-only",
+        name: "Text only",
+        contextLength: 1,
+        pricing: {},
+        supportedParameters: [],
+        tools: false,
+      },
+    ];
+    expect(filterProviderModels(models, "claude").map((model) => model.id)).toEqual([
+      "anthropic/claude-test",
+    ]);
+    expect(filterProviderModels(models, "text-only")).toEqual([]);
   });
 });

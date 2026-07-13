@@ -22,6 +22,7 @@ import { buildSessionExport } from "../sessions/session-export.js";
 import { resolveWorkspacePath } from "../security/path-policy.js";
 import { configureProvider, printProviders } from "./provider-command.js";
 import { providerApiKey } from "../config/credentials.js";
+import { updateAlexus } from "./update-command.js";
 
 const program = new Command();
 program
@@ -37,6 +38,15 @@ program
     await initializeWorkspace(root());
     console.log(`Inizializzato ${path.join(root(), ".alexus")}`);
   });
+program
+  .command("update")
+  .description("aggiorna Alexus CLI all'ultima release verificata")
+  .option("--check", "controlla senza installare")
+  .option("--force", "reinstalla anche la stessa versione")
+  .option("--version <version>", "installa una versione specifica")
+  .action((options: { check?: boolean; force?: boolean; version?: string }) =>
+    updateAlexus(options),
+  );
 program
   .command("run")
   .description("esegue un task singolo")

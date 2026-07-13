@@ -11,3 +11,4 @@ export { rankRepositoryFiles } from "./context/file-ranker.js";
 export { buildSessionReport, formatSessionReport } from "./sessions/session-report.js";
 export { buildSessionExport, sanitizeSessionValue } from "./sessions/session-export.js";
 export { credentialsPath, providerApiKey, saveProviderApiKey } from "./config/credentials.js";
+export { compareVersions, verifyPackageChecksum, updateAlexus } from "./cli/update-command.js";

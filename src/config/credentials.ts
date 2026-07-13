@@ -26,14 +26,14 @@ function parseCredentials(content: string): CredentialsFile {
 }
 
 export function providerApiKey(provider: string): string | undefined {
-  if (provider === "openrouter" && process.env.OPENROUTER_API_KEY)
-    return process.env.OPENROUTER_API_KEY;
   try {
-    return parseCredentials(readFileSync(credentialsPath(), "utf8")).providers?.[provider]?.apiKey;
+    const stored = parseCredentials(readFileSync(credentialsPath(), "utf8")).providers?.[provider]
+      ?.apiKey;
+    if (stored) return stored;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-    throw error;
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
+  return provider === "openrouter" ? process.env.OPENROUTER_API_KEY : undefined;
 }
 
 export async function saveProviderApiKey(provider: string, apiKey: string): Promise<void> {
