@@ -11,6 +11,18 @@ Alexus è un agente CLI proprietario per lavorare su repository locali con model
 
 ## Installazione
 
+### Windows — installazione rapida
+
+Da PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/imAlexus/alexus-cli/main/install.ps1 | iex
+```
+
+L'installer richiede Node.js 22+, scarica l'ultima release, verifica il checksum SHA-256, installa Alexus globalmente e configura il `PATH` utente quando necessario.
+
+### Sviluppo locale
+
 ```powershell
 pnpm install
 pnpm build
