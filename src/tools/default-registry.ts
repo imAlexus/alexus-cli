@@ -5,6 +5,7 @@ import {
   searchFilesTool,
   writeFileTool,
   applyPatchTool,
+  applyEditsTool,
 } from "./filesystem.js";
 import { runCommandTool } from "./shell.js";
 import { gitStatusTool, gitDiffTool } from "./git.js";
@@ -16,6 +17,7 @@ export function createDefaultRegistry(): ToolRegistry {
     .register(searchFilesTool)
     .register(writeFileTool)
     .register(applyPatchTool)
+    .register(applyEditsTool)
     .register(runCommandTool)
     .register(gitStatusTool)
     .register(gitDiffTool)

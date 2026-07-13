@@ -233,3 +233,109 @@ export const applyPatchTool: ToolDefinition<typeof patchSchema> = {
     };
   },
 };
+
+const multiEditSchema = z
+  .object({
+    edits: z
+      .array(
+        z.object({ path: z.string(), oldText: z.string().min(1), newText: z.string() }).strict(),
+      )
+      .min(1)
+      .max(50),
+  })
+  .strict();
+export const applyEditsTool: ToolDefinition<typeof multiEditSchema> = {
+  name: "apply_edits",
+  description:
+    "Applica fino a 50 sostituzioni esatte su più file come un'unica transazione: se una modifica è in conflitto, non scrive alcun file.",
+  schema: multiEditSchema,
+  parameters: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      edits: {
+        type: "array",
+        minItems: 1,
+        maxItems: 50,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            path: { type: "string" },
+            oldText: { type: "string" },
+            newText: { type: "string" },
+          },
+          required: ["path", "oldText", "newText"],
+        },
+      },
+    },
+    required: ["edits"],
+  },
+  async execute(input, c) {
+    const files = new Map<string, string>();
+    const resolved = new Map<string, string>();
+
+    // Prepara l'intera transazione in memoria prima di toccare il filesystem.
+    for (const edit of input.edits) {
+      if (isSensitivePath(edit.path))
+        throw new AlexusError(
+          "APPROVAL_DENIED",
+          `Modifica automatica del file sensibile vietata: ${edit.path}`,
+        );
+      let content = files.get(edit.path);
+      if (content === undefined) {
+        const file = await resolveSafeExistingPath(c.workspaceRoot, edit.path);
+        resolved.set(edit.path, file);
+        content = await textContent(file);
+      }
+      const first = content.indexOf(edit.oldText);
+      if (first < 0)
+        throw new AlexusError(
+          "PATCH_CONFLICT",
+          `Il testo originale non è presente in ${edit.path}`,
+        );
+      if (content.indexOf(edit.oldText, first + 1) >= 0)
+        throw new AlexusError("PATCH_CONFLICT", `Il testo originale non è univoco in ${edit.path}`);
+      files.set(
+        edit.path,
+        content.slice(0, first) + edit.newText + content.slice(first + edit.oldText.length),
+      );
+    }
+
+    const before = new Map<string, string>();
+    for (const [relative, file] of resolved) {
+      before.set(relative, await textContent(file));
+      await c.store.checkpoint(c.sessionId, relative);
+    }
+
+    const written: string[] = [];
+    try {
+      for (const [relative, content] of files) {
+        await writeFile(resolved.get(relative)!, content);
+        written.push(relative);
+      }
+    } catch (error) {
+      await Promise.all(
+        written.map((relative) => writeFile(resolved.get(relative)!, before.get(relative)!)),
+      );
+      throw error;
+    }
+    for (const relative of files.keys()) await c.store.markWritten(c.sessionId, relative);
+
+    return {
+      paths: [...files.keys()],
+      edits: input.edits.length,
+      diffs: [...files].map(([relative, content]) => ({
+        path: relative,
+        diff: createTwoFilesPatch(
+          relative,
+          relative,
+          before.get(relative)!,
+          content,
+          "prima",
+          "dopo",
+        ),
+      })),
+    };
+  },
+};

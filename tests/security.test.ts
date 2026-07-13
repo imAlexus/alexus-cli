@@ -76,6 +76,10 @@ describe("interactive approvals", () => {
       allowed: false,
       risk: "blocked",
     });
+    await expect(readonly.evaluate("apply_edits", { edits: [] })).resolves.toMatchObject({
+      allowed: false,
+      risk: "blocked",
+    });
   });
 
   it("restores a remembered command without prompting again", async () => {

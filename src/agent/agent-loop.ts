@@ -331,13 +331,23 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
         };
         messages.push(completedMessage);
         input.store.addMessage(input.session.id, completedMessage, input.turnId);
-        if (call.name === "apply_patch" || call.name === "write_file") {
+        if (
+          call.name === "apply_patch" ||
+          call.name === "apply_edits" ||
+          call.name === "write_file"
+        ) {
           mutations++;
-          const changed = result as { path?: unknown };
-          const changedPath = typeof changed.path === "string" ? changed.path : "unknown";
-          if (changedPath !== "unknown" && !changedFiles.includes(changedPath))
-            changedFiles.push(changedPath);
-          input.events.emit(event(input.session.id, "file.changed", { path: changedPath }));
+          const changed = result as { path?: unknown; paths?: unknown };
+          const paths = Array.isArray(changed.paths)
+            ? changed.paths.filter((value): value is string => typeof value === "string")
+            : typeof changed.path === "string"
+              ? [changed.path]
+              : ["unknown"];
+          for (const changedPath of paths) {
+            if (changedPath !== "unknown" && !changedFiles.includes(changedPath))
+              changedFiles.push(changedPath);
+            input.events.emit(event(input.session.id, "file.changed", { path: changedPath }));
+          }
         }
         if (call.name === "run_command") {
           if ((result as { exitCode?: unknown }).exitCode === 0) successfulChecks++;

@@ -47,6 +47,8 @@ Per attività articolate Alexus può creare e aggiornare un piano strutturato tr
 
 Ogni sessione produce inoltre un report verificabile con file modificati, inserimenti e cancellazioni, comandi di verifica, token, costo, piano e numero di approvazioni ricordate. Il report è disponibile in formato umano o JSON e viene emesso anche nel protocollo eventi.
 
+Le modifiche correlate su più file vengono preparate interamente in memoria e applicate come una singola transazione. Se anche una sola sostituzione è assente o ambigua, Alexus non scrive nessuno dei file coinvolti; in caso di errore durante la scrittura ripristina quelli già aggiornati.
+
 ```text
 alexus
 alexus chat

@@ -6,6 +6,7 @@ import { SessionStore } from "../src/sessions/sqlite-store.js";
 import { EventBus } from "../src/protocol/event-bus.js";
 import {
   applyPatchTool,
+  applyEditsTool,
   listFilesTool,
   readFileTool,
   searchFilesTool,
@@ -85,6 +86,45 @@ describe("filesystem tools", () => {
     await applyPatchTool.execute({ path: "code.ts", oldText: "old", newText: "agent" }, f.context);
     await writeFile(file, "user");
     await expect(f.store.undo(f.session.id)).rejects.toThrow(/modificato dopo Alexus/);
+    f.store.close();
+  });
+  it("applies related edits to multiple files as one transaction", async () => {
+    const f = await fixture();
+    await writeFile(path.join(f.root, "a.ts"), "export const a = 1;\n");
+    await writeFile(path.join(f.root, "b.ts"), "export const b = 1;\n");
+    const result = (await applyEditsTool.execute(
+      {
+        edits: [
+          { path: "a.ts", oldText: "a = 1", newText: "a = 2" },
+          { path: "b.ts", oldText: "b = 1", newText: "b = 2" },
+        ],
+      },
+      f.context,
+    )) as { paths: string[] };
+    expect(result.paths).toEqual(["a.ts", "b.ts"]);
+    expect(await readFile(path.join(f.root, "a.ts"), "utf8")).toContain("a = 2");
+    expect(await readFile(path.join(f.root, "b.ts"), "utf8")).toContain("b = 2");
+    expect(f.store.changedFiles(f.session.id)).toEqual(["a.ts", "b.ts"]);
+    f.store.close();
+  });
+  it("writes nothing when one edit in a transaction conflicts", async () => {
+    const f = await fixture();
+    await writeFile(path.join(f.root, "a.ts"), "a = 1\n");
+    await writeFile(path.join(f.root, "b.ts"), "b = 1\n");
+    await expect(
+      applyEditsTool.execute(
+        {
+          edits: [
+            { path: "a.ts", oldText: "a = 1", newText: "a = 2" },
+            { path: "b.ts", oldText: "missing", newText: "b = 2" },
+          ],
+        },
+        f.context,
+      ),
+    ).rejects.toThrow(/non è presente/);
+    expect(await readFile(path.join(f.root, "a.ts"), "utf8")).toBe("a = 1\n");
+    expect(await readFile(path.join(f.root, "b.ts"), "utf8")).toBe("b = 1\n");
+    expect(f.store.changedFiles(f.session.id)).toEqual([]);
     f.store.close();
   });
 });

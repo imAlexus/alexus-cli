@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import type { AlexusConfig } from "../config/schema.js";
 import { classifyCommand, type RiskLevel } from "./command-policy.js";
 
-const writes = new Set(["apply_patch", "write_file"]);
+const writes = new Set(["apply_patch", "apply_edits", "write_file"]);
 export interface ApprovalRequest {
   tool: string;
   command: string;
