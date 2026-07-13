@@ -10,6 +10,7 @@ export interface ToolContext {
   signal: AbortSignal;
   maxOutputChars: number;
   approvalGranted?: boolean;
+  toolCallId?: string;
 }
 export interface ToolDefinition<T extends z.ZodType = z.ZodType> {
   name: string;

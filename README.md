@@ -39,6 +39,8 @@ Su cmd.exe usare `set OPENROUTER_API_KEY=sk-or-v1-...`; su Linux/macOS usare `ex
 
 Esegui `alexus` nella cartella del progetto per aprire l'interfaccia interattiva. La risposta viene mostrata in streaming, le operazioni sui file e i comandi appaiono in un pannello dedicato e le azioni a rischio chiedono conferma con `y` (una volta), `a` (per la sessione) o `n` (rifiuta).
 
+Alexus rileva automaticamente ecosistema, framework, package manager e script disponibili. Dopo una modifica, se il modello non ha già verificato il risultato, esegue una selezione sicura di formatter check, lint, typecheck, test e build. Per modifiche alla sola documentazione evita verifiche inutili; per modifiche limitate ai test evita la build completa. Output dei processi, token e costo cumulativo sono visibili in tempo reale e registrati negli eventi JSONL.
+
 ```text
 alexus
 alexus chat

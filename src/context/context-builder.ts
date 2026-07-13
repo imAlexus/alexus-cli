@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import fg from "fast-glob";
+import { detectProject, formatProjectProfile } from "../project/project-detector.js";
 
 async function optional(file: string, max = 12000): Promise<string> {
   try {
@@ -21,6 +22,8 @@ export async function buildProjectContext(root: string): Promise<string> {
     "go.mod",
   ];
   const sections: string[] = [];
+  const profile = await detectProject(root);
+  sections.push(`## Profilo progetto\n${formatProjectProfile(profile)}`);
   for (const name of priority) {
     const value = await optional(path.join(root, name));
     if (value) sections.push(`## ${name}\n${value}`);

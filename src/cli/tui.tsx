@@ -13,6 +13,7 @@ import type {
 } from "../security/approval-manager.js";
 import { SessionStore } from "../sessions/sqlite-store.js";
 import { PACKAGE_VERSION } from "../utils/version.js";
+import { detectProject, formatProjectProfile } from "../project/project-detector.js";
 
 interface ToolView {
   id: string;
@@ -21,6 +22,13 @@ interface ToolView {
   durationMs?: number;
   arguments?: unknown;
   error?: string;
+  output?: string;
+}
+
+interface UsageView {
+  promptTokens: number;
+  completionTokens: number;
+  cost: number;
 }
 
 interface PendingApproval {
@@ -86,6 +94,12 @@ function updateTool(tools: ToolView[], id: string, patch: Partial<ToolView>): To
   return tools.map((tool) => (tool.id === id ? { ...tool, ...patch } : tool));
 }
 
+function appendToolOutput(tools: ToolView[], id: string, output: string): ToolView[] {
+  return tools.map((tool) =>
+    tool.id === id ? { ...tool, output: `${tool.output ?? ""}${output}`.slice(-4000) } : tool,
+  );
+}
+
 function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactElement {
   const { exit } = useApp();
   const [config, setConfig] = useState<AlexusConfig>();
@@ -96,6 +110,12 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
   const [verification, setVerification] = useState<string>();
   const [expanded, setExpanded] = useState(false);
   const [approval, setApproval] = useState<PendingApproval>();
+  const [usage, setUsage] = useState<UsageView>({
+    promptTokens: 0,
+    completionTokens: 0,
+    cost: 0,
+  });
+  const [verificationPlan, setVerificationPlan] = useState<string[]>([]);
   const abortRef = useRef<AbortController | undefined>(undefined);
 
   useEffect(() => {
@@ -133,6 +153,31 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       );
     if (value.type === "tool.reused")
       setTools((current) => updateTool(current, String(value.toolCallId), { status: "reused" }));
+    if (
+      value.type === "command.output" &&
+      typeof value.toolCallId === "string" &&
+      typeof value.text === "string"
+    ) {
+      const toolCallId = value.toolCallId;
+      const output = value.text;
+      setTools((current) => appendToolOutput(current, toolCallId, output));
+    }
+    if (value.type === "usage.updated") {
+      setUsage({
+        promptTokens: typeof value.promptTokens === "number" ? value.promptTokens : 0,
+        completionTokens: typeof value.completionTokens === "number" ? value.completionTokens : 0,
+        cost: typeof value.estimatedCost === "number" ? value.estimatedCost : 0,
+      });
+    }
+    if (value.type === "verification.plan" && Array.isArray(value.commands)) {
+      setVerificationPlan(
+        value.commands.flatMap((command) => {
+          if (typeof command !== "object" || command === null) return [];
+          const label = (command as { label?: unknown }).label;
+          return typeof label === "string" ? [label] : [];
+        }),
+      );
+    }
     if (
       value.type === "session.completed" &&
       (value.verification === "verified" ||
@@ -203,8 +248,9 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       if (command === "/status" || command === "/model") {
         const current = await loadConfig(workspaceRoot);
         setConfig(current);
+        const profile = command === "/status" ? await detectProject(workspaceRoot) : undefined;
         setNotice(
-          `Model: ${current.model}\nMode: ${current.approvalMode}\nMax steps: ${current.maxSteps}`,
+          `Model: ${current.model}\nMode: ${current.approvalMode}\nMax steps: ${current.maxSteps}${profile ? `\n${formatProjectProfile(profile)}` : ""}`,
         );
         return true;
       }
@@ -275,6 +321,8 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         setAssistant("");
         setTools([]);
         setVerification(undefined);
+        setVerificationPlan([]);
+        setUsage({ promptTokens: 0, completionTokens: 0, cost: 0 });
         setNotice(
           isPlan ? "Pianificazione in corso…" : isGoal ? "Obiettivo in corso…" : "Task in corso…",
         );
@@ -340,6 +388,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
                 {tool.error ? `\n${tool.error}` : ""}
               </Text>
             ) : null}
+            {tool.output ? <Text dimColor>{tool.output}</Text> : null}
           </Box>
         ))}
       </Box>
@@ -355,7 +404,17 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
             {verification.toUpperCase()}
           </Text>
         ) : null}
+        {usage.promptTokens + usage.completionTokens > 0 ? (
+          <Text dimColor>
+            {" "}
+            {usage.promptTokens.toLocaleString()} in / {usage.completionTokens.toLocaleString()} out
+            {usage.cost > 0 ? ` Â· $${usage.cost.toFixed(4)}` : ""}
+          </Text>
+        ) : null}
       </Box>
+      {verificationPlan.length ? (
+        <Text dimColor>Verifiche automatiche: {verificationPlan.join(" Â· ")}</Text>
+      ) : null}
       <Box marginY={1}>
         <Text dimColor>{notice}</Text>
       </Box>

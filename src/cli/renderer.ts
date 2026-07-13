@@ -22,5 +22,21 @@ export const humanRenderer =
             pc.dim(`Costo stimato: $${Number(event.estimatedCost).toFixed(4)}\n`),
           );
         break;
+      case "verification.plan": {
+        const commands = Array.isArray(event.commands)
+          ? event.commands.flatMap((command) => {
+              if (typeof command !== "object" || command === null) return [];
+              const label = (command as { label?: unknown }).label;
+              return typeof label === "string" ? [label] : [];
+            })
+          : [];
+        if (commands.length)
+          process.stderr.write(pc.dim(`Verifiche automatiche: ${commands.join(", ")}\n`));
+        break;
+      }
+      case "command.output":
+        if (typeof event.text === "string")
+          (event.stream === "stderr" ? process.stderr : process.stdout).write(event.text);
+        break;
     }
   };

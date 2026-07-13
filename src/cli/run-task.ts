@@ -30,6 +30,8 @@ export interface ExecutionSummary {
   verification: "verified" | "partial" | "unverified";
   steps: number;
   cost: number;
+  promptTokens: number;
+  completionTokens: number;
 }
 export async function executeTask(
   root: string,
@@ -107,6 +109,8 @@ export async function executeTask(
         verification: result.verification,
         steps: result.steps,
         cost: result.cost,
+        promptTokens: result.promptTokens,
+        completionTokens: result.completionTokens,
       }),
     );
     if (!options.json && !options.embedded) {

@@ -1,8 +1,9 @@
-import { spawn } from "node:child_process";
+import spawn from "cross-spawn";
 import { z } from "zod";
 import { classifyCommand } from "../security/command-policy.js";
 import { redactSecrets } from "../security/secret-detector.js";
 import { AlexusError } from "../utils/errors.js";
+import { event } from "../protocol/events.js";
 import type { ToolDefinition } from "./tool.js";
 
 const schema = z
@@ -51,9 +52,16 @@ export const runCommandTool: ToolDefinition<typeof schema> = {
         }
         if (kind === "out") stdout += value;
         else stderr += value;
+        c.events.emit(
+          event(c.sessionId, "command.output", {
+            ...(c.toolCallId ? { toolCallId: c.toolCallId } : {}),
+            stream: kind === "out" ? "stdout" : "stderr",
+            text: value,
+          }),
+        );
       };
-      child.stdout.on("data", (x: Buffer) => add("out", x));
-      child.stderr.on("data", (x: Buffer) => add("err", x));
+      child.stdout?.on("data", (x: Buffer) => add("out", x));
+      child.stderr?.on("data", (x: Buffer) => add("err", x));
       const timer = setTimeout(() => {
         timedOut = true;
         child.kill();

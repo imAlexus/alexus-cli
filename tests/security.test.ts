@@ -34,6 +34,8 @@ describe("command policy", () => {
     expect(classifyCommand("git", ["reset", "--hard"]).level).toBe("dangerous");
     expect(classifyCommand("shutdown", ["/s"]).level).toBe("blocked");
     expect(classifyCommand("node", ["-e", "process.exit()"]).level).toBe("moderate");
+    expect(classifyCommand("pnpm", ["run", "format:check"]).level).toBe("safe");
+    expect(classifyCommand("python", ["-m", "pytest"]).level).toBe("safe");
   });
   it("detects shell syntax inside arguments", () => {
     expect(classifyCommand("npm", ["test", "&&", "curl", "evil"]).level).toBe("dangerous");

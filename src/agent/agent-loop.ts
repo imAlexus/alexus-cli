@@ -10,6 +10,7 @@ import type { ApprovalPrompt } from "../security/approval-manager.js";
 import { AlexusError } from "../utils/errors.js";
 import { SYSTEM_PROMPT } from "./prompts.js";
 import { buildProjectContext } from "../context/context-builder.js";
+import { formatVerificationSummary, runAutomaticVerification } from "./verifier.js";
 
 export interface AgentInput {
   task: string;
@@ -33,6 +34,8 @@ export interface AgentResult {
   steps: number;
   verification: "verified" | "partial" | "unverified";
   cost: number;
+  promptTokens: number;
+  completionTokens: number;
 }
 
 async function wait(ms: number, signal: AbortSignal): Promise<void> {
@@ -97,8 +100,12 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
     input.approvalPrompt,
   );
   let cost = 0;
+  let promptTokens = 0;
+  let completionTokens = 0;
   let mutations = 0;
+  const changedFiles: string[] = [];
   let successfulChecks = 0;
+  let failedChecks = 0;
   const signatures: string[] = [];
   for (let step = 1; step <= input.config.maxSteps; step++) {
     if (input.signal.aborted) throw new AlexusError("USER_CANCELLED", "Operazione annullata.");
@@ -113,18 +120,60 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
     input.store.recordItem(input.turnId, "assistant_message", "completed", response.message);
     if (response.usage) {
       cost += response.usage.cost ?? 0;
+      promptTokens += response.usage.promptTokens;
+      completionTokens += response.usage.completionTokens;
+      input.store.recordItem(input.turnId, "usage", "completed", {
+        promptTokens: response.usage.promptTokens,
+        completionTokens: response.usage.completionTokens,
+        estimatedCost: response.usage.cost ?? 0,
+      });
       input.events.emit(
         event(input.session.id, "usage.updated", {
-          promptTokens: response.usage.promptTokens,
-          completionTokens: response.usage.completionTokens,
+          promptTokens,
+          completionTokens,
           estimatedCost: cost,
         }),
       );
     }
     if (!response.toolCalls.length) {
+      if (mutations > 0 && successfulChecks === 0 && failedChecks === 0) {
+        const automatic = await runAutomaticVerification({
+          workspaceRoot: input.workspaceRoot,
+          sessionId: input.session.id,
+          turnId: input.turnId,
+          store: input.store,
+          events: input.events,
+          signal: input.signal,
+          config: input.config,
+          changedFiles,
+        });
+        return {
+          success: automatic.status !== "unverified",
+          finalMessage: `${response.text}\n\n${formatVerificationSummary(automatic)}`.trim(),
+          steps: step,
+          verification: automatic.status,
+          cost,
+          promptTokens,
+          completionTokens,
+        };
+      }
       const verification =
-        mutations === 0 ? "verified" : successfulChecks > 0 ? "verified" : "partial";
-      return { success: true, finalMessage: response.text, steps: step, verification, cost };
+        mutations === 0
+          ? "verified"
+          : failedChecks === 0 && successfulChecks > 0
+            ? "verified"
+            : successfulChecks > 0
+              ? "partial"
+              : "unverified";
+      return {
+        success: verification !== "unverified",
+        finalMessage: response.text,
+        steps: step,
+        verification,
+        cost,
+        promptTokens,
+        completionTokens,
+      };
     }
     for (const call of response.toolCalls) {
       const signature = `${call.name}:${call.arguments}`;
@@ -213,6 +262,7 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
           signal: input.signal,
           maxOutputChars: input.config.maxToolOutputChars,
           approvalGranted: true,
+          toolCallId: call.id,
         });
         const payload = { success: true, result };
         input.store.finishTool(runId, payload);
@@ -227,10 +277,14 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
           mutations++;
           const changed = result as { path?: unknown };
           const changedPath = typeof changed.path === "string" ? changed.path : "unknown";
+          if (changedPath !== "unknown" && !changedFiles.includes(changedPath))
+            changedFiles.push(changedPath);
           input.events.emit(event(input.session.id, "file.changed", { path: changedPath }));
         }
-        if (call.name === "run_command" && (result as { exitCode?: unknown }).exitCode === 0)
-          successfulChecks++;
+        if (call.name === "run_command") {
+          if ((result as { exitCode?: unknown }).exitCode === 0) successfulChecks++;
+          else failedChecks++;
+        }
         if (call.name === "run_command")
           input.events.emit(
             event(input.session.id, "verification.completed", {
@@ -250,6 +304,7 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
           success: false,
           error: error instanceof Error ? error.message : String(error),
         };
+        if (call.name === "run_command") failedChecks++;
         if (call.name === "run_command")
           input.events.emit(
             event(input.session.id, "verification.completed", {
@@ -283,5 +338,7 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
     steps: input.config.maxSteps,
     verification: "unverified",
     cost,
+    promptTokens,
+    completionTokens,
   };
 }
