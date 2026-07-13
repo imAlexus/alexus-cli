@@ -20,6 +20,8 @@ import { buildProjectContextReport } from "../context/context-builder.js";
 import { buildSessionReport, formatSessionReport } from "../sessions/session-report.js";
 import { buildSessionExport } from "../sessions/session-export.js";
 import { resolveWorkspacePath } from "../security/path-policy.js";
+import { configureProvider, printProviders } from "./provider-command.js";
+import { providerApiKey } from "../config/credentials.js";
 
 const program = new Command();
 program
@@ -66,6 +68,16 @@ program
   .command("chat")
   .description("avvia la modalità interattiva")
   .action(() => startRepl(root()));
+const provider = program
+  .command("provider")
+  .description("elenca e configura i provider AI")
+  .action(() => configureProvider());
+provider.command("list").description("elenca i provider disponibili").action(printProviders);
+provider
+  .command("set")
+  .description("configura un provider")
+  .argument("<provider>")
+  .action((providerId: string) => configureProvider(providerId));
 program
   .command("resume")
   .description("riprende l'ultima sessione o una sessione specifica")
@@ -295,8 +307,8 @@ program
     checks.push(["Git", git.code === 0, (git.stdout || git.stderr).trim()]);
     checks.push([
       "OPENROUTER_API_KEY",
-      Boolean(process.env.OPENROUTER_API_KEY),
-      process.env.OPENROUTER_API_KEY ? "presente" : "mancante",
+      Boolean(providerApiKey("openrouter")),
+      providerApiKey("openrouter") ? "presente" : "mancante (esegui: alexus provider)",
     ]);
     checks.push(["Workspace scrivibile", await isWritable(root()), root()]);
     const parsed = configSchema.safeParse(await loadConfig(root()));
@@ -304,7 +316,7 @@ program
     const store = new SessionStore(root());
     checks.push(["Database", store.integrity() === "ok", store.integrity()]);
     store.close();
-    if (process.env.OPENROUTER_API_KEY) {
+    if (providerApiKey("openrouter")) {
       try {
         const models = await listModels(root(), true);
         const selected = (await loadConfig(root())).model;

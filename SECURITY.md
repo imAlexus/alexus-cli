@@ -13,3 +13,5 @@ Indica versione, sistema operativo, impatto, procedura di riproduzione e una pos
 ## Confini di sicurezza
 
 Alexus limita i percorsi al workspace reale, non usa una shell per eseguire processi, classifica i comandi e conserva checkpoint con hash per l'undo. Questi controlli riducono il rischio ma non sostituiscono l'ispezione delle modifiche e l'uso di repository sotto controllo versione.
+
+Le chiavi configurate con `alexus provider` sono conservate fuori dai progetti in `~/.alexus/credentials.json`, creato con permessi `0600` sui sistemi POSIX. Non aggiungere mai questo file a un repository o a un backup condiviso.

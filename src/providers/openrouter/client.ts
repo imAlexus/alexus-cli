@@ -1,11 +1,12 @@
 import OpenAI from "openai";
 import { AlexusError } from "../../utils/errors.js";
+import { providerApiKey } from "../../config/credentials.js";
 export function createOpenRouterClient(): OpenAI {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const apiKey = providerApiKey("openrouter");
   if (!apiKey)
     throw new AlexusError(
       "API_KEY_MISSING",
-      "Imposta OPENROUTER_API_KEY prima di avviare un task.",
+      'Configura OpenRouter con "alexus provider" oppure imposta OPENROUTER_API_KEY.',
     );
   return new OpenAI({
     apiKey,

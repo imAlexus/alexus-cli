@@ -66,12 +66,53 @@ interface ComposerProps {
   onSubmit: (value: string) => void;
 }
 
+export const SLASH_COMMANDS = [
+  { command: "/help", description: "mostra tutti i comandi" },
+  { command: "/status", description: "stato del progetto e configurazione" },
+  { command: "/context", description: "mostra il contesto selezionato" },
+  { command: "/compact", description: "compatta la conversazione" },
+  { command: "/new", description: "inizia una nuova conversazione" },
+  { command: "/review", description: "report verificabile della sessione" },
+  { command: "/model", description: "mostra il modello attivo" },
+  { command: "/permissions", description: "cambia i permessi" },
+  { command: "/diff", description: "mostra le modifiche" },
+  { command: "/undo", description: "annulla le modifiche della sessione" },
+  { command: "/sessions", description: "elenca le sessioni" },
+  { command: "/plan", description: "crea o mostra un piano" },
+  { command: "/goal", description: "esegue un obiettivo autonomo" },
+  { command: "/clear", description: "pulisce la schermata" },
+  { command: "/exit", description: "chiude Alexus" },
+] as const;
+
+export function slashCommandSuggestions(input: string) {
+  if (!input.startsWith("/") || input.includes("\n") || input.includes(" ")) return [];
+  const query = input.toLowerCase();
+  return SLASH_COMMANDS.filter((item) => item.command.startsWith(query)).slice(0, 7);
+}
+
 function Composer({ active, onSubmit }: ComposerProps): React.ReactElement {
   const [value, setValue] = useState("");
   const [cursor, setCursor] = useState(0);
+  const [selectedSuggestion, setSelectedSuggestion] = useState(0);
+  const suggestions = slashCommandSuggestions(value);
 
   useInput(
     (input, key) => {
+      if (suggestions.length && key.downArrow) {
+        setSelectedSuggestion((current) => (current + 1) % suggestions.length);
+        return;
+      }
+      if (suggestions.length && key.upArrow) {
+        setSelectedSuggestion((current) => (current - 1 + suggestions.length) % suggestions.length);
+        return;
+      }
+      if (suggestions.length && key.tab) {
+        const completion = `${suggestions[selectedSuggestion % suggestions.length]!.command} `;
+        setValue(completion);
+        setCursor(completion.length);
+        setSelectedSuggestion(0);
+        return;
+      }
       if (key.return) {
         if (key.shift) {
           setValue((current) => `${current.slice(0, cursor)}\n${current.slice(cursor)}`);
@@ -80,6 +121,7 @@ function Composer({ active, onSubmit }: ComposerProps): React.ReactElement {
           onSubmit(value.trim());
           setValue("");
           setCursor(0);
+          setSelectedSuggestion(0);
         }
         return;
       }
@@ -87,6 +129,7 @@ function Composer({ active, onSubmit }: ComposerProps): React.ReactElement {
         if (cursor > 0) {
           setValue((current) => current.slice(0, cursor - 1) + current.slice(cursor));
           setCursor((current) => current - 1);
+          setSelectedSuggestion(0);
         }
         return;
       }
@@ -97,6 +140,7 @@ function Composer({ active, onSubmit }: ComposerProps): React.ReactElement {
       if (input && !key.ctrl && !key.meta) {
         setValue((current) => current.slice(0, cursor) + input + current.slice(cursor));
         setCursor((current) => current + input.length);
+        setSelectedSuggestion(0);
       }
     },
     { isActive: active },
@@ -106,11 +150,30 @@ function Composer({ active, onSubmit }: ComposerProps): React.ReactElement {
   const current = value[cursor] ?? " ";
   const after = value.slice(cursor + (cursor < value.length ? 1 : 0));
   return (
-    <Box borderStyle="round" borderColor={active ? "cyan" : "gray"} paddingX={1}>
-      <Text color="cyan">› </Text>
-      <Text>{before}</Text>
-      <Text inverse={active}>{current === "\n" ? "↵" : current}</Text>
-      <Text>{after}</Text>
+    <Box flexDirection="column">
+      <Box borderStyle="round" borderColor={active ? "cyan" : "gray"} paddingX={1}>
+        <Text color="cyan">› </Text>
+        <Text>{before}</Text>
+        <Text inverse={active}>{current === "\n" ? "↵" : current}</Text>
+        <Text>{after}</Text>
+      </Box>
+      {suggestions.length ? (
+        <Box flexDirection="column" paddingX={2}>
+          {suggestions.map((suggestion, index) => (
+            <Text
+              key={suggestion.command}
+              bold={index === selectedSuggestion % suggestions.length}
+              {...(index === selectedSuggestion % suggestions.length
+                ? { color: "cyan" as const }
+                : {})}
+            >
+              {index === selectedSuggestion % suggestions.length ? "›" : " "} {suggestion.command}{" "}
+              <Text dimColor>— {suggestion.description}</Text>
+            </Text>
+          ))}
+          <Text dimColor>↑↓ seleziona · Tab completa · Invio esegue</Text>
+        </Box>
+      ) : null}
     </Box>
   );
 }

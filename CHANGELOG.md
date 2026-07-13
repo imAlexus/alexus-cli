@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0 — 2026-07-14
+
+- Configurazione guidata dei provider tramite `alexus provider` con chiave mascherata.
+- Archivio credenziali separato e protetto, con priorità alle variabili d'ambiente.
+- Suggerimenti interattivi dei comandi `/`, navigazione con frecce e completamento con Tab.
+
 ## 1.0.0 — 2026-07-13
 
 - Release stabile con installer verificato per Windows, Linux e macOS.

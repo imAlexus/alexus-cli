@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AlexusModel } from "./types.js";
 import { AlexusError } from "../../utils/errors.js";
+import { providerApiKey } from "../../config/credentials.js";
 
 const TTL = 60 * 60 * 1000;
 export async function listModels(root: string, refresh = false): Promise<AlexusModel[]> {
@@ -17,7 +18,7 @@ export async function listModels(root: string, refresh = false): Promise<AlexusM
       /* refresh */
     }
   }
-  const key = process.env.OPENROUTER_API_KEY;
+  const key = providerApiKey("openrouter");
   const response = await fetch("https://openrouter.ai/api/v1/models", {
     headers: key ? { Authorization: `Bearer ${key}` } : {},
   });

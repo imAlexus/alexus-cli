@@ -7,7 +7,7 @@ Alexus è un agente CLI open source per lavorare su repository locali con modell
 - Node.js 22+
 - pnpm 11+
 - Git
-- una chiave `OPENROUTER_API_KEY`
+- una chiave OpenRouter, configurabile con `alexus provider` oppure `OPENROUTER_API_KEY`
 
 ## Installazione
 
@@ -39,6 +39,7 @@ pnpm build
 pnpm link --global
 $env:OPENROUTER_API_KEY = "sk-or-v1-..."
 alexus init
+alexus provider
 alexus model set anthropic/claude-sonnet-4
 alexus doctor
 ```
@@ -48,6 +49,8 @@ Su cmd.exe usare `set OPENROUTER_API_KEY=sk-or-v1-...`; su Linux/macOS usare `ex
 ## Uso
 
 Esegui `alexus` nella cartella del progetto per aprire l'interfaccia interattiva. La risposta viene mostrata in streaming, le operazioni sui file e i comandi appaiono in un pannello dedicato e le azioni a rischio chiedono conferma con `y` (una volta), `a` (per la sessione) o `n` (rifiuta).
+
+`alexus provider` mostra i provider disponibili, permette di scegliere OpenRouter e richiede la chiave API con input mascherato. Le credenziali vengono salvate separatamente in `~/.alexus/credentials.json` con accesso limitato all'utente; `OPENROUTER_API_KEY`, quando presente, ha priorità.
 
 Alexus rileva automaticamente ecosistema, framework, package manager e script disponibili. Dopo una modifica, se il modello non ha già verificato il risultato, esegue una selezione sicura di formatter check, lint, typecheck, test e build. Per modifiche alla sola documentazione evita verifiche inutili; per modifiche limitate ai test evita la build completa. Output dei processi, token e costo cumulativo sono visibili in tempo reale e registrati negli eventi JSONL.
 
@@ -78,6 +81,9 @@ alexus status
 alexus diff
 alexus undo [session-id]
 alexus config
+alexus provider
+alexus provider list
+alexus provider set openrouter
 alexus model list --tools
 alexus model search claude
 alexus model get
@@ -107,7 +113,7 @@ Nell'interfaccia interattiva sono disponibili:
 /exit
 ```
 
-`Ctrl+O` mostra o nasconde gli argomenti degli strumenti. `Ctrl+C` annulla il task in corso; se Alexus è inattivo, chiude l'interfaccia. `Shift+Enter` inserisce una nuova riga nel prompt.
+Digitando `/` nel prompt appare l'elenco dei comandi compatibili. Usa `↑` e `↓` per scegliere e `Tab` per completare. `Ctrl+O` mostra o nasconde gli argomenti degli strumenti. `Ctrl+C` annulla il task in corso; se Alexus è inattivo, chiude l'interfaccia. `Shift+Enter` inserisce una nuova riga nel prompt.
 
 `--json` riserva stdout a eventi JSONL versionati; diagnostica e prompt di approvazione vanno su stderr.
 
@@ -123,7 +129,7 @@ Le sessioni sono organizzate come thread persistenti composti da turni e item. M
 
 ## Configurazione
 
-Il file progetto è `.alexus/config.json`; quello globale è `~/.alexus/config.json`. Priorità: flag CLI, ambiente, progetto, globale, default. La chiave API non viene mai salvata nella configurazione.
+Il file progetto è `.alexus/config.json`; quello globale è `~/.alexus/config.json`. Priorità: flag CLI, ambiente, progetto, globale, default. La chiave API non viene mai salvata nella configurazione: il comando provider usa l'archivio credenziali separato `~/.alexus/credentials.json`.
 
 ## Sviluppo
 
