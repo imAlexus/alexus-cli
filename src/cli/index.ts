@@ -10,6 +10,7 @@ import {
 } from "../config/loader.js";
 import { configSchema } from "../config/schema.js";
 import { errorMessage } from "../utils/errors.js";
+import { PACKAGE_VERSION } from "../utils/version.js";
 import { executeTask } from "./run-task.js";
 import { startRepl } from "./repl.js";
 import { SessionStore } from "../sessions/sqlite-store.js";
@@ -19,7 +20,7 @@ const program = new Command();
 program
   .name("alexus")
   .description("Agente CLI sicuro per lo sviluppo software")
-  .version("0.1.0")
+  .version(PACKAGE_VERSION)
   .option("--debug", "mostra stack trace");
 const root = () => process.cwd();
 program
