@@ -41,12 +41,16 @@ Esegui `alexus` nella cartella del progetto per aprire l'interfaccia interattiva
 
 Alexus rileva automaticamente ecosistema, framework, package manager e script disponibili. Dopo una modifica, se il modello non ha già verificato il risultato, esegue una selezione sicura di formatter check, lint, typecheck, test e build. Per modifiche alla sola documentazione evita verifiche inutili; per modifiche limitate ai test evita la build completa. Output dei processi, token e costo cumulativo sono visibili in tempo reale e registrati negli eventi JSONL.
 
+Il motore di contesto indicizza il repository rispettando `.gitignore`, esclude file sensibili, ordina i file in base alla richiesta e include soltanto quelli più pertinenti entro un budget token. Le conversazioni interattive continuano nella stessa sessione e vengono compattate automaticamente quando si avvicinano al limite del modello.
+
 ```text
 alexus
 alexus chat
 alexus run "trova il bug, correggilo ed esegui i test"
 alexus run --model openai/gpt-5 --max-cost 1.50 "correggi gli errori TypeScript"
 alexus run --json "analizza il progetto"
+alexus run --compact "continua riducendo il contesto precedente"
+alexus context "correggi il login"
 alexus resume [session-id]
 alexus sessions
 alexus sessions show <session-id> [--json]
@@ -67,6 +71,9 @@ Nell'interfaccia interattiva sono disponibili:
 ```text
 /help
 /status
+/context [richiesta]
+/compact
+/new
 /model
 /permissions readonly|workspace|full-access
 /diff

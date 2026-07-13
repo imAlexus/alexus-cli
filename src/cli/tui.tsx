@@ -14,6 +14,7 @@ import type {
 import { SessionStore } from "../sessions/sqlite-store.js";
 import { PACKAGE_VERSION } from "../utils/version.js";
 import { detectProject, formatProjectProfile } from "../project/project-detector.js";
+import { buildProjectContextReport, type ContextStats } from "../context/context-builder.js";
 
 interface ToolView {
   id: string;
@@ -116,6 +117,9 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
     cost: 0,
   });
   const [verificationPlan, setVerificationPlan] = useState<string[]>([]);
+  const [contextStats, setContextStats] = useState<ContextStats>();
+  const [sessionId, setSessionId] = useState<string>();
+  const [compactNext, setCompactNext] = useState(false);
   const abortRef = useRef<AbortController | undefined>(undefined);
 
   useEffect(() => {
@@ -179,6 +183,25 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       );
     }
     if (
+      value.type === "context.built" &&
+      typeof value.filesIndexed === "number" &&
+      typeof value.filesIncluded === "number" &&
+      typeof value.estimatedTokens === "number" &&
+      typeof value.budgetTokens === "number"
+    ) {
+      setContextStats({
+        filesIndexed: value.filesIndexed,
+        filesIncluded: value.filesIncluded,
+        estimatedTokens: value.estimatedTokens,
+        budgetTokens: value.budgetTokens,
+        truncated: value.truncated === true,
+      });
+    }
+    if (value.type === "context.compacted")
+      setNotice(
+        `Contesto compattato: ${String(value.beforeTokens)} → ${String(value.afterTokens)} token.`,
+      );
+    if (
       value.type === "session.completed" &&
       (value.verification === "verified" ||
         value.verification === "partial" ||
@@ -239,9 +262,39 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         setNotice("Schermata pulita.");
         return true;
       }
+      if (command === "/new") {
+        setSessionId(undefined);
+        setAssistant("");
+        setTools([]);
+        setContextStats(undefined);
+        setNotice("Nuova conversazione pronta.");
+        return true;
+      }
+      if (command === "/context") {
+        const current = await loadConfig(workspaceRoot);
+        const report = await buildProjectContextReport(
+          workspaceRoot,
+          parts.join(" ") || "analizza il progetto",
+          current.maxContextTokens,
+          current.respectGitignore,
+        );
+        setContextStats(report.stats);
+        setNotice(
+          `Contesto: ${report.stats.filesIndexed} file indicizzati, ${report.stats.filesIncluded} inclusi, ${report.stats.estimatedTokens}/${report.stats.budgetTokens} token.\n${report.rankedFiles
+            .slice(0, 10)
+            .map((file) => `${file.score}  ${file.path}`)
+            .join("\n")}`,
+        );
+        return true;
+      }
+      if (command === "/compact") {
+        setCompactNext(true);
+        setNotice("La conversazione verrà compattata prima del prossimo prompt.");
+        return true;
+      }
       if (command === "/help") {
         setNotice(
-          "/status  /model  /permissions <mode>  /diff  /undo  /sessions  /plan <task>  /goal <task>  /clear  /exit\nCtrl+O dettagli tool · Ctrl+C annulla/esce · Shift+Enter nuova riga",
+          "/status  /context [task]  /compact  /new  /model  /permissions <mode>  /diff  /undo  /sessions  /plan <task>  /goal <task>  /clear  /exit\nCtrl+O dettagli tool · Ctrl+C annulla/esce · Shift+Enter nuova riga",
         );
         return true;
       }
@@ -333,8 +386,12 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
           eventSink,
           approvalPrompt,
           signal: controller.signal,
+          ...(sessionId ? { resumeSessionId: sessionId } : {}),
+          ...(compactNext ? { forceCompact: true } : {}),
           ...(isPlan ? { approvalMode: "readonly" as const } : {}),
         });
+        setSessionId(result.sessionId);
+        setCompactNext(false);
         setNotice(`Sessione ${result.sessionId} completata in ${result.steps} step.`);
         setVerification(result.verification);
       } catch (error) {
@@ -344,7 +401,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         setBusy(false);
       }
     },
-    [approvalPrompt, busy, eventSink, runSlashCommand, workspaceRoot],
+    [approvalPrompt, busy, compactNext, eventSink, runSlashCommand, sessionId, workspaceRoot],
   );
 
   return (
@@ -357,6 +414,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       </Box>
       <Text dimColor>
         {path.basename(workspaceRoot)} · {config?.approvalMode ?? "…"}
+        {sessionId ? ` · ${sessionId}` : ""}
       </Text>
       <Box marginTop={1} flexDirection="column">
         {assistant ? <Text>{assistant.slice(-5000)}</Text> : null}
@@ -408,12 +466,19 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
           <Text dimColor>
             {" "}
             {usage.promptTokens.toLocaleString()} in / {usage.completionTokens.toLocaleString()} out
-            {usage.cost > 0 ? ` Â· $${usage.cost.toFixed(4)}` : ""}
+            {usage.cost > 0 ? ` · $${usage.cost.toFixed(4)}` : ""}
           </Text>
         ) : null}
       </Box>
       {verificationPlan.length ? (
-        <Text dimColor>Verifiche automatiche: {verificationPlan.join(" Â· ")}</Text>
+        <Text dimColor>Verifiche automatiche: {verificationPlan.join(" · ")}</Text>
+      ) : null}
+      {contextStats ? (
+        <Text dimColor>
+          Contesto: {contextStats.filesIncluded}/{contextStats.filesIndexed} file ·{" "}
+          {contextStats.estimatedTokens.toLocaleString()}/
+          {contextStats.budgetTokens.toLocaleString()} token
+        </Text>
       ) : null}
       <Box marginY={1}>
         <Text dimColor>{notice}</Text>

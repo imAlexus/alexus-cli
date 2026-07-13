@@ -38,5 +38,19 @@ export const humanRenderer =
         if (typeof event.text === "string")
           (event.stream === "stderr" ? process.stderr : process.stdout).write(event.text);
         break;
+      case "context.built":
+        process.stderr.write(
+          pc.dim(
+            `Contesto: ${String(event.filesIncluded)}/${String(event.filesIndexed)} file, ${String(event.estimatedTokens)}/${String(event.budgetTokens)} token\n`,
+          ),
+        );
+        break;
+      case "context.compacted":
+        process.stderr.write(
+          pc.dim(
+            `Contesto compattato: ${String(event.beforeTokens)} -> ${String(event.afterTokens)} token\n`,
+          ),
+        );
+        break;
     }
   };

@@ -22,6 +22,7 @@ export interface RunOptions {
   approvalPrompt?: ApprovalPrompt;
   embedded?: boolean;
   signal?: AbortSignal;
+  forceCompact?: boolean;
 }
 export interface ExecutionSummary {
   sessionId: string;
@@ -93,6 +94,7 @@ export async function executeTask(
       ...(options.approvalPrompt ? { approvalPrompt: options.approvalPrompt } : {}),
       ...(resumeMessages ? { resumeMessages } : {}),
       ...(options.maxCost !== undefined ? { maxCost: options.maxCost } : {}),
+      ...(options.forceCompact ? { forceCompact: true } : {}),
     });
     store.updateStatus(session.id, result.success ? "completed" : "failed");
     store.finishTurn(turn.id, result.success ? "completed" : "failed");

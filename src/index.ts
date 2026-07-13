@@ -4,3 +4,7 @@ export { resolveWorkspacePath, resolveSafeExistingPath } from "./security/path-p
 export { classifyCommand } from "./security/command-policy.js";
 export { createDefaultRegistry } from "./tools/default-registry.js";
 export { SessionStore } from "./sessions/sqlite-store.js";
+export { buildProjectContext, buildProjectContextReport } from "./context/context-builder.js";
+export { compactConversation } from "./context/compactor.js";
+export { buildRepositoryMap } from "./context/repository-map.js";
+export { rankRepositoryFiles } from "./context/file-ranker.js";

@@ -9,8 +9,9 @@ import { ApprovalManager } from "../security/approval-manager.js";
 import type { ApprovalPrompt } from "../security/approval-manager.js";
 import { AlexusError } from "../utils/errors.js";
 import { SYSTEM_PROMPT } from "./prompts.js";
-import { buildProjectContext } from "../context/context-builder.js";
+import { buildProjectContextReport } from "../context/context-builder.js";
 import { formatVerificationSummary, runAutomaticVerification } from "./verifier.js";
+import { compactConversation } from "../context/compactor.js";
 
 export interface AgentInput {
   task: string;
@@ -27,6 +28,7 @@ export interface AgentInput {
   maxCost?: number;
   resumeMessages?: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
   approvalPrompt?: ApprovalPrompt;
+  forceCompact?: boolean;
 }
 export interface AgentResult {
   success: boolean;
@@ -79,19 +81,39 @@ async function generateWithRetry(
   }
 }
 export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
-  const context = await buildProjectContext(input.workspaceRoot);
+  const context = await buildProjectContextReport(
+    input.workspaceRoot,
+    input.task,
+    input.config.maxContextTokens,
+    input.config.respectGitignore,
+  );
+  input.events.emit(
+    event(input.session.id, "context.built", {
+      ...context.stats,
+      rankedFiles: context.rankedFiles.slice(0, 10).map((file) => ({
+        path: file.path,
+        score: file.score,
+        reasons: file.reasons,
+      })),
+    }),
+  );
   const systemMessage: OpenAI.Chat.Completions.ChatCompletionSystemMessageParam = {
     role: "system",
-    content: `${SYSTEM_PROMPT}\n\nContesto iniziale:\n${context}`,
+    content: `${SYSTEM_PROMPT}\n\nContesto iniziale:\n${context.content}`,
+  };
+  const contextUpdate: OpenAI.Chat.Completions.ChatCompletionSystemMessageParam = {
+    role: "system",
+    content: `Contesto aggiornato per il nuovo turno:\n${context.content}`,
   };
   const userMessage: OpenAI.Chat.Completions.ChatCompletionUserMessageParam = {
     role: "user",
     content: input.task,
   };
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = input.resumeMessages
-    ? [...input.resumeMessages, userMessage]
+    ? [...input.resumeMessages, contextUpdate, userMessage]
     : [systemMessage, userMessage];
-  if (!input.resumeMessages) input.store.addMessage(input.session.id, systemMessage, input.turnId);
+  if (input.resumeMessages) input.store.addMessage(input.session.id, contextUpdate, input.turnId);
+  else input.store.addMessage(input.session.id, systemMessage, input.turnId);
   input.store.addMessage(input.session.id, userMessage, input.turnId);
   const approval = new ApprovalManager(
     input.config.approvalMode,
@@ -114,6 +136,26 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
         "OPENROUTER_PROVIDER_ERROR",
         `Limite costo di $${input.maxCost.toFixed(2)} raggiunto.`,
       );
+    const compacted = compactConversation(
+      messages,
+      Math.max(1_000, Math.floor(input.config.maxContextTokens * 0.85)),
+      Boolean(input.forceCompact && step === 1),
+    );
+    if (compacted.compacted) {
+      messages.splice(0, messages.length, ...compacted.messages);
+      input.store.recordItem(input.turnId, "context_compaction", "completed", {
+        beforeTokens: compacted.beforeTokens,
+        afterTokens: compacted.afterTokens,
+        forced: Boolean(input.forceCompact && step === 1),
+      });
+      input.events.emit(
+        event(input.session.id, "context.compacted", {
+          beforeTokens: compacted.beforeTokens,
+          afterTokens: compacted.afterTokens,
+          forced: Boolean(input.forceCompact && step === 1),
+        }),
+      );
+    }
     const response = await generateWithRetry(input, messages);
     messages.push(response.message);
     input.store.addMessage(input.session.id, response.message, input.turnId);

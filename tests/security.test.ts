@@ -5,6 +5,7 @@ import path from "node:path";
 import { resolveSafeExistingPath, resolveWorkspacePath } from "../src/security/path-policy.js";
 import { classifyCommand } from "../src/security/command-policy.js";
 import { ApprovalManager } from "../src/security/approval-manager.js";
+import { isSensitivePath } from "../src/security/secret-detector.js";
 
 describe("path policy", () => {
   it("blocks traversal, absolute and Windows escape paths", () => {
@@ -25,6 +26,11 @@ describe("path policy", () => {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EPERM") throw error;
     }
+  });
+  it("allows environment templates but treats real environment files as sensitive", () => {
+    expect(isSensitivePath(".env")).toBe(true);
+    expect(isSensitivePath("config/.env.local")).toBe(true);
+    expect(isSensitivePath(".env.example")).toBe(false);
   });
 });
 

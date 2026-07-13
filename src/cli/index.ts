@@ -15,6 +15,7 @@ import { executeTask } from "./run-task.js";
 import { startRepl } from "./repl.js";
 import { SessionStore } from "../sessions/sqlite-store.js";
 import { listModels } from "../providers/openrouter/models.js";
+import { buildProjectContextReport } from "../context/context-builder.js";
 
 const program = new Command();
 program
@@ -38,6 +39,7 @@ program
   .option("--json", "emette solo JSONL su stdout")
   .option("--max-cost <usd>", "limite costo", Number)
   .option("--approval-mode <mode>")
+  .option("--compact", "forza la compattazione del contesto")
   .action(
     async (
       task: string,
@@ -46,9 +48,14 @@ program
         json?: boolean;
         maxCost?: number;
         approvalMode?: "readonly" | "workspace" | "full-access";
+        compact?: boolean;
       },
     ) => {
-      await executeTask(root(), task, o);
+      const { compact, ...options } = o;
+      await executeTask(root(), task, {
+        ...options,
+        ...(compact ? { forceCompact: true } : {}),
+      });
     },
   );
 program
@@ -152,6 +159,29 @@ program
     } finally {
       store.close();
     }
+  });
+program
+  .command("context")
+  .description("mostra il contesto selezionato per un task")
+  .argument("[task]", "richiesta usata per ordinare i file", "analizza il progetto")
+  .option("--json")
+  .action(async (task: string, options: { json?: boolean }) => {
+    const config = await loadConfig(root());
+    const report = await buildProjectContextReport(
+      root(),
+      task,
+      config.maxContextTokens,
+      config.respectGitignore,
+    );
+    if (options.json) {
+      console.log(JSON.stringify(report, null, 2));
+      return;
+    }
+    console.log(
+      `File indicizzati: ${report.stats.filesIndexed}\nFile inclusi: ${report.stats.filesIncluded}\nToken stimati: ${report.stats.estimatedTokens}/${report.stats.budgetTokens}\n\nFile più rilevanti:`,
+    );
+    for (const file of report.rankedFiles.slice(0, 20))
+      console.log(`${String(file.score).padStart(3)}  ${file.path}`);
   });
 program
   .command("config")
