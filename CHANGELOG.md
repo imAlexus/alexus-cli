@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.5 — 2026-07-14
+
+- Chat TUI ridisegnata con messaggi utente su fascia neutra, risposte minimali e composer piatto nello stile Codex CLI.
+- Rimossi dalla vista i riepiloghi automatici di verifica, token, contesto e completamento sessione.
+
 ## 1.2.4 — 2026-07-14
 
 - Nuova intestazione TUI a card con gerarchia visiva più chiara per versione, modello, workspace, permessi e sessione.

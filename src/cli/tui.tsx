@@ -14,7 +14,7 @@ import type {
 import { SessionStore, type StoredPlanStep } from "../sessions/sqlite-store.js";
 import { PACKAGE_VERSION } from "../utils/version.js";
 import { detectProject, formatProjectProfile } from "../project/project-detector.js";
-import { buildProjectContextReport, type ContextStats } from "../context/context-builder.js";
+import { buildProjectContextReport } from "../context/context-builder.js";
 import { buildSessionReport, formatSessionReport } from "../sessions/session-report.js";
 import { providerApiKey, saveProviderApiKey } from "../config/credentials.js";
 import { listModels } from "../providers/openrouter/models.js";
@@ -28,12 +28,6 @@ interface ToolView {
   arguments?: unknown;
   error?: string;
   output?: string;
-}
-
-interface UsageView {
-  promptTokens: number;
-  completionTokens: number;
-  cost: number;
 }
 
 interface PlanView {
@@ -197,13 +191,26 @@ function Composer({ active, onSubmit }: ComposerProps): React.ReactElement {
   const before = value.slice(0, cursor);
   const current = value[cursor] ?? " ";
   const after = value.slice(cursor + (cursor < value.length ? 1 : 0));
+  const placeholder = "Scrivi un messaggio o / per i comandi";
+  const contentWidth = Math.max(24, (process.stdout.columns ?? 80) - 2);
+  const visibleLength = value.length ? value.length + 3 : placeholder.length + 3;
+  const filler = " ".repeat(Math.max(1, contentWidth - visibleLength));
+  const backgroundColor = "#262626";
   return (
     <Box flexDirection="column">
-      <Box borderStyle="round" borderColor={active ? "cyan" : "gray"} paddingX={1}>
-        <Text color="cyan">› </Text>
-        <Text>{before}</Text>
-        <Text inverse={active}>{current === "\n" ? "↵" : current}</Text>
-        <Text>{after}</Text>
+      <Box marginTop={1}>
+        <Text backgroundColor={backgroundColor}>› </Text>
+        <Text backgroundColor={backgroundColor}>{before}</Text>
+        <Text backgroundColor={backgroundColor} inverse={active}>
+          {current === "\n" ? "↵" : current}
+        </Text>
+        <Text backgroundColor={backgroundColor}>{after}</Text>
+        {!value ? (
+          <Text backgroundColor={backgroundColor} dimColor>
+            {placeholder}
+          </Text>
+        ) : null}
+        <Text backgroundColor={backgroundColor}>{filler}</Text>
       </Box>
       {suggestions.length ? (
         <Box flexDirection="column" paddingX={2}>
@@ -239,43 +246,29 @@ function appendToolOutput(tools: ToolView[], id: string, output: string): ToolVi
 function Header({
   workspaceRoot,
   config,
-  sessionId,
 }: {
   workspaceRoot: string;
   config: AlexusConfig | undefined;
-  sessionId: string | undefined;
 }): React.ReactElement {
-  const mode = config?.approvalMode;
-  const modeColor =
-    mode === "readonly" ? "green" : mode === "full-access" ? "red" : mode ? "yellow" : "gray";
-
   return (
-    <Box borderStyle="round" borderColor="cyan" paddingX={1} flexDirection="column">
-      <Box justifyContent="space-between">
-        <Box>
-          <Text bold color="cyan">
-            ◆ ALEXUS
-          </Text>
-          <Text dimColor> · Coding Agent</Text>
-        </Box>
-        <Text color="cyan">v{PACKAGE_VERSION}</Text>
-      </Box>
-      <Box>
-        <Text dimColor>MODEL </Text>
-        <Text bold color="magenta">
-          {config?.model ?? "caricamento…"}
-        </Text>
-      </Box>
-      <Box flexWrap="wrap">
-        <Text dimColor>WORKSPACE </Text>
-        <Text bold>{path.basename(workspaceRoot)}</Text>
-        <Text dimColor> • MODE </Text>
-        <Text color={modeColor}>{mode ?? "…"}</Text>
-        <Text dimColor> • SESSION </Text>
-        <Text color={sessionId ? "blue" : "gray"}>{sessionId ?? "nuova"}</Text>
-      </Box>
+    <Box flexDirection="column" marginBottom={1}>
+      <Text>
+        <Text bold>Alexus CLI</Text> <Text dimColor>v{PACKAGE_VERSION}</Text>
+      </Text>
+      <Text dimColor>
+        {config?.model ?? "caricamento…"} · {path.basename(workspaceRoot)} ·{" "}
+        {config?.approvalMode ?? "…"}
+      </Text>
     </Box>
   );
+}
+
+function userMessage(text: string): string {
+  const width = Math.max(24, (process.stdout.columns ?? 80) - 2);
+  return text
+    .split("\n")
+    .map((line, index) => `${index === 0 ? "› " : "  "}${line}`.padEnd(width))
+    .join("\n");
 }
 
 function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactElement {
@@ -285,17 +278,9 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
   const [assistant, setAssistant] = useState("");
   const [conversation, setConversation] = useState<ConversationEntry[]>([]);
   const [tools, setTools] = useState<ToolView[]>([]);
-  const [notice, setNotice] = useState("Pronto. /help mostra i comandi disponibili.");
-  const [verification, setVerification] = useState<string>();
+  const [notice, setNotice] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [approval, setApproval] = useState<PendingApproval>();
-  const [usage, setUsage] = useState<UsageView>({
-    promptTokens: 0,
-    completionTokens: 0,
-    cost: 0,
-  });
-  const [verificationPlan, setVerificationPlan] = useState<string[]>([]);
-  const [contextStats, setContextStats] = useState<ContextStats>();
   const [sessionId, setSessionId] = useState<string>();
   const [compactNext, setCompactNext] = useState(false);
   const [plan, setPlan] = useState<PlanView>();
@@ -347,37 +332,6 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       const output = value.text;
       setTools((current) => appendToolOutput(current, toolCallId, output));
     }
-    if (value.type === "usage.updated") {
-      setUsage({
-        promptTokens: typeof value.promptTokens === "number" ? value.promptTokens : 0,
-        completionTokens: typeof value.completionTokens === "number" ? value.completionTokens : 0,
-        cost: typeof value.estimatedCost === "number" ? value.estimatedCost : 0,
-      });
-    }
-    if (value.type === "verification.plan" && Array.isArray(value.commands)) {
-      setVerificationPlan(
-        value.commands.flatMap((command) => {
-          if (typeof command !== "object" || command === null) return [];
-          const label = (command as { label?: unknown }).label;
-          return typeof label === "string" ? [label] : [];
-        }),
-      );
-    }
-    if (
-      value.type === "context.built" &&
-      typeof value.filesIndexed === "number" &&
-      typeof value.filesIncluded === "number" &&
-      typeof value.estimatedTokens === "number" &&
-      typeof value.budgetTokens === "number"
-    ) {
-      setContextStats({
-        filesIndexed: value.filesIndexed,
-        filesIncluded: value.filesIncluded,
-        estimatedTokens: value.estimatedTokens,
-        budgetTokens: value.budgetTokens,
-        truncated: value.truncated === true,
-      });
-    }
     if (value.type === "context.compacted")
       setNotice(
         `Contesto compattato: ${String(value.beforeTokens)} → ${String(value.afterTokens)} token.`,
@@ -390,13 +344,6 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
           ...(typeof value.explanation === "string" ? { explanation: value.explanation } : {}),
         });
     }
-    if (
-      value.type === "session.completed" &&
-      (value.verification === "verified" ||
-        value.verification === "partial" ||
-        value.verification === "unverified")
-    )
-      setVerification(value.verification);
   }, []);
 
   const approvalPrompt: ApprovalPrompt = useCallback(
@@ -631,7 +578,6 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         setAssistant("");
         setConversation([]);
         setTools([]);
-        setContextStats(undefined);
         setPlan(undefined);
         setNotice("Nuova conversazione pronta.");
         return true;
@@ -644,7 +590,6 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
           current.maxContextTokens,
           current.respectGitignore,
         );
-        setContextStats(report.stats);
         setNotice(
           `Contesto: ${report.stats.filesIndexed} file indicizzati, ${report.stats.filesIncluded} inclusi, ${report.stats.estimatedTokens}/${report.stats.budgetTokens} token.\n${report.rankedFiles
             .slice(0, 10)
@@ -807,12 +752,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         setBusy(true);
         setAssistant("");
         setTools([]);
-        setVerification(undefined);
-        setVerificationPlan([]);
-        setUsage({ promptTokens: 0, completionTokens: 0, cost: 0 });
-        setNotice(
-          isPlan ? "Pianificazione in corso…" : isGoal ? "Obiettivo in corso…" : "Task in corso…",
-        );
+        setNotice("");
         const controller = new AbortController();
         abortRef.current = controller;
         const result = await executeTask(workspaceRoot, task, {
@@ -826,8 +766,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         });
         setSessionId(result.sessionId);
         setCompactNext(false);
-        setNotice(`Sessione ${result.sessionId} completata in ${result.steps} step.`);
-        setVerification(result.verification);
+        setNotice("");
         setConversation((current) =>
           appendConversationEntry(current, {
             id: ++conversationIdRef.current,
@@ -856,24 +795,23 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
 
   return (
     <Box flexDirection="column" paddingX={1}>
-      <Header workspaceRoot={workspaceRoot} config={config} sessionId={sessionId} />
-      <Box marginTop={1} flexDirection="column">
+      <Header workspaceRoot={workspaceRoot} config={config} />
+      <Box flexDirection="column">
         {conversation.map((entry) => (
-          <Box key={entry.id} flexDirection="column" marginBottom={1}>
-            <Text
-              bold
-              color={entry.role === "user" ? "cyan" : entry.role === "assistant" ? "green" : "red"}
-            >
-              {entry.role === "user" ? "Tu" : entry.role === "assistant" ? "Alexus" : "Sistema"}
-            </Text>
-            <Text>{entry.text}</Text>
+          <Box key={entry.id} marginBottom={1}>
+            {entry.role === "user" ? (
+              <Text backgroundColor="#262626">{userMessage(entry.text)}</Text>
+            ) : (
+              <Text {...(entry.role === "system" ? { color: "red" as const } : {})}>
+                <Text dimColor>{entry.role === "system" ? "! " : "• "}</Text>
+                {entry.text}
+              </Text>
+            )}
           </Box>
         ))}
         {assistant ? (
-          <Box flexDirection="column" marginBottom={1}>
-            <Text bold color="green">
-              Alexus
-            </Text>
+          <Box marginBottom={1}>
+            <Text dimColor>• </Text>
             <Text>{assistant.slice(-5000)}</Text>
           </Box>
         ) : null}
@@ -930,39 +868,18 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
           ))}
         </Box>
       ) : null}
-      <Box marginTop={1}>
+      <Box>
         {busy ? (
-          <Text color="yellow">
-            <Spinner type="dots" /> Alexus sta lavorando
-          </Text>
-        ) : null}
-        {verification ? (
-          <Text color={verification === "verified" ? "green" : "yellow"}>
-            {" "}
-            {verification.toUpperCase()}
-          </Text>
-        ) : null}
-        {usage.promptTokens + usage.completionTokens > 0 ? (
           <Text dimColor>
-            {" "}
-            {usage.promptTokens.toLocaleString()} in / {usage.completionTokens.toLocaleString()} out
-            {usage.cost > 0 ? ` · $${usage.cost.toFixed(4)}` : ""}
+            <Spinner type="dots" /> Sto lavorando…
           </Text>
         ) : null}
       </Box>
-      {verificationPlan.length ? (
-        <Text dimColor>Verifiche automatiche: {verificationPlan.join(" · ")}</Text>
+      {notice ? (
+        <Box marginY={1}>
+          <Text dimColor>• {notice}</Text>
+        </Box>
       ) : null}
-      {contextStats ? (
-        <Text dimColor>
-          Contesto: {contextStats.filesIncluded}/{contextStats.filesIndexed} file ·{" "}
-          {contextStats.estimatedTokens.toLocaleString()}/
-          {contextStats.budgetTokens.toLocaleString()} token
-        </Text>
-      ) : null}
-      <Box marginY={1}>
-        <Text dimColor>{notice}</Text>
-      </Box>
       {providerDialog ? (
         <Box borderStyle="double" borderColor="cyan" paddingX={1} flexDirection="column">
           {providerDialog.stage === "provider" ? (
