@@ -120,6 +120,9 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
     Boolean(process.stdin.isTTY),
     input.json,
     input.approvalPrompt,
+    input.store.approvals(input.session.id),
+    (key, request) =>
+      input.store.rememberApproval(input.session.id, key, request.tool, request.risk),
   );
   let cost = 0;
   let promptTokens = 0;
@@ -178,6 +181,15 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
       );
     }
     if (!response.toolCalls.length) {
+      const durablePlan = input.store.plan(input.session.id);
+      const incompletePlan =
+        durablePlan?.steps.some((item) => item.status !== "completed") ?? false;
+      if (incompletePlan)
+        input.events.emit(
+          event(input.session.id, "plan.incomplete", {
+            remaining: durablePlan?.steps.filter((item) => item.status !== "completed").length ?? 0,
+          }),
+        );
       if (mutations > 0 && successfulChecks === 0 && failedChecks === 0) {
         const automatic = await runAutomaticVerification({
           workspaceRoot: input.workspaceRoot,
@@ -189,17 +201,19 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
           config: input.config,
           changedFiles,
         });
+        const verification =
+          incompletePlan && automatic.status === "verified" ? "partial" : automatic.status;
         return {
-          success: automatic.status !== "unverified",
+          success: verification !== "unverified",
           finalMessage: `${response.text}\n\n${formatVerificationSummary(automatic)}`.trim(),
           steps: step,
-          verification: automatic.status,
+          verification,
           cost,
           promptTokens,
           completionTokens,
         };
       }
-      const verification =
+      const rawVerification =
         mutations === 0
           ? "verified"
           : failedChecks === 0 && successfulChecks > 0
@@ -207,6 +221,8 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
             : successfulChecks > 0
               ? "partial"
               : "unverified";
+      const verification =
+        incompletePlan && rawVerification === "verified" ? "partial" : rawVerification;
       return {
         success: verification !== "unverified",
         finalMessage: response.text,

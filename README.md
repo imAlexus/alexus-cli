@@ -43,6 +43,8 @@ Alexus rileva automaticamente ecosistema, framework, package manager e script di
 
 Il motore di contesto indicizza il repository rispettando `.gitignore`, esclude file sensibili, ordina i file in base alla richiesta e include soltanto quelli più pertinenti entro un budget token. Le conversazioni interattive continuano nella stessa sessione e vengono compattate automaticamente quando si avvicinano al limite del modello.
 
+Per attività articolate Alexus può creare e aggiornare un piano strutturato tramite un tool validato. Il piano viene mostrato nella TUI, salvato in SQLite e recuperato con il resume; una risposta finale con step ancora aperti viene marcata come parzialmente verificata. Anche le approvazioni concesse per la sessione persistono tra turni e riavvii, limitatamente allo stesso comando e agli stessi argomenti.
+
 ```text
 alexus
 alexus chat
@@ -55,6 +57,7 @@ alexus resume [session-id]
 alexus sessions
 alexus sessions show <session-id> [--json]
 alexus sessions delete <session-id>
+alexus plan [session-id] [--json]
 alexus status
 alexus diff
 alexus undo [session-id]
@@ -80,6 +83,8 @@ Nell'interfaccia interattiva sono disponibili:
 /undo
 /sessions
 /plan <richiesta>
+/plan show
+/plan clear
 /goal <obiettivo>
 /clear
 /exit

@@ -42,6 +42,17 @@ export interface StoredItem {
   createdAt: string;
   updatedAt: string;
 }
+export type PlanStepStatus = "pending" | "in_progress" | "completed";
+export interface StoredPlanStep {
+  step: string;
+  status: PlanStepStatus;
+}
+export interface StoredPlan {
+  sessionId: string;
+  explanation?: string;
+  steps: StoredPlanStep[];
+  updatedAt: string;
+}
 const hash = (data: Buffer): string => createHash("sha256").update(data).digest("hex");
 
 export class SessionStore {
@@ -62,6 +73,8 @@ export class SessionStore {
     CREATE TABLE IF NOT EXISTS file_checkpoints (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, path TEXT NOT NULL, original_hash TEXT, original_content BLOB, latest_hash TEXT, created_at TEXT NOT NULL, UNIQUE(session_id,path), FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS turns (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, prompt TEXT NOT NULL, status TEXT NOT NULL, started_at TEXT NOT NULL, completed_at TEXT, FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS items (id TEXT PRIMARY KEY, turn_id TEXT NOT NULL, type TEXT NOT NULL, status TEXT NOT NULL, payload_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(turn_id) REFERENCES turns(id) ON DELETE CASCADE);
+    CREATE TABLE IF NOT EXISTS session_plans (session_id TEXT PRIMARY KEY, explanation TEXT, plan_json TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE);
+    CREATE TABLE IF NOT EXISTS session_approvals (session_id TEXT NOT NULL, approval_key TEXT NOT NULL, tool TEXT NOT NULL, risk TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(session_id,approval_key), FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE);
   `);
     this.addColumn("messages", "payload_json", "TEXT");
     this.addColumn("messages", "turn_id", "TEXT");
@@ -203,6 +216,55 @@ export class SessionStore {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
+  }
+  savePlan(sessionId: string, steps: StoredPlanStep[], explanation?: string): StoredPlan {
+    const updatedAt = new Date().toISOString();
+    this.db.transaction(() => {
+      this.db
+        .prepare(
+          `INSERT INTO session_plans (session_id,explanation,plan_json,updated_at) VALUES (?,?,?,?)
+           ON CONFLICT(session_id) DO UPDATE SET explanation=excluded.explanation,plan_json=excluded.plan_json,updated_at=excluded.updated_at`,
+        )
+        .run(sessionId, explanation ?? null, JSON.stringify(steps), updatedAt);
+      this.db.prepare("UPDATE sessions SET updated_at=? WHERE id=?").run(updatedAt, sessionId);
+    })();
+    return { sessionId, ...(explanation ? { explanation } : {}), steps, updatedAt };
+  }
+  plan(sessionId: string): StoredPlan | undefined {
+    const row = this.db
+      .prepare("SELECT explanation,plan_json,updated_at FROM session_plans WHERE session_id=?")
+      .get(sessionId) as
+      { explanation: string | null; plan_json: string; updated_at: string } | undefined;
+    if (!row) return undefined;
+    return {
+      sessionId,
+      ...(row.explanation ? { explanation: row.explanation } : {}),
+      steps: JSON.parse(row.plan_json) as StoredPlanStep[],
+      updatedAt: row.updated_at,
+    };
+  }
+  clearPlan(sessionId: string): boolean {
+    return (
+      this.db.prepare("DELETE FROM session_plans WHERE session_id=?").run(sessionId).changes > 0
+    );
+  }
+  rememberApproval(sessionId: string, key: string, tool: string, risk: string): void {
+    const now = new Date().toISOString();
+    this.db
+      .prepare(
+        "INSERT OR IGNORE INTO session_approvals (session_id,approval_key,tool,risk,created_at) VALUES (?,?,?,?,?)",
+      )
+      .run(sessionId, key, tool, risk, now);
+    this.db.prepare("UPDATE sessions SET updated_at=? WHERE id=?").run(now, sessionId);
+  }
+  approvals(sessionId: string): string[] {
+    return (
+      this.db
+        .prepare(
+          "SELECT approval_key FROM session_approvals WHERE session_id=? ORDER BY created_at",
+        )
+        .all(sessionId) as Array<{ approval_key: string }>
+    ).map((row) => row.approval_key);
   }
   addMessage(
     sessionId: string,

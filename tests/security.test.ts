@@ -77,4 +77,37 @@ describe("interactive approvals", () => {
       risk: "blocked",
     });
   });
+
+  it("restores a remembered command without prompting again", async () => {
+    let remembered = "";
+    const first = new ApprovalManager(
+      "workspace",
+      false,
+      false,
+      () => Promise.resolve("session"),
+      [],
+      (key) => {
+        remembered = key;
+      },
+    );
+    await expect(
+      first.evaluate("run_command", { command: "pnpm", args: ["install"] }),
+    ).resolves.toMatchObject({ allowed: true });
+
+    let prompts = 0;
+    const restored = new ApprovalManager(
+      "workspace",
+      false,
+      false,
+      () => {
+        prompts += 1;
+        return Promise.resolve("deny");
+      },
+      [remembered],
+    );
+    await expect(
+      restored.evaluate("run_command", { command: "pnpm", args: ["install"] }),
+    ).resolves.toMatchObject({ allowed: true });
+    expect(prompts).toBe(0);
+  });
 });

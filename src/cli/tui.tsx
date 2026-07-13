@@ -11,7 +11,7 @@ import type {
   ApprovalRequest,
   ApprovalResponse,
 } from "../security/approval-manager.js";
-import { SessionStore } from "../sessions/sqlite-store.js";
+import { SessionStore, type StoredPlanStep } from "../sessions/sqlite-store.js";
 import { PACKAGE_VERSION } from "../utils/version.js";
 import { detectProject, formatProjectProfile } from "../project/project-detector.js";
 import { buildProjectContextReport, type ContextStats } from "../context/context-builder.js";
@@ -30,6 +30,29 @@ interface UsageView {
   promptTokens: number;
   completionTokens: number;
   cost: number;
+}
+
+interface PlanView {
+  explanation?: string;
+  steps: StoredPlanStep[];
+}
+
+function eventPlan(value: unknown): StoredPlanStep[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const steps: StoredPlanStep[] = [];
+  for (const item of value) {
+    if (typeof item !== "object" || item === null) return undefined;
+    const candidate = item as { step?: unknown; status?: unknown };
+    if (
+      typeof candidate.step !== "string" ||
+      (candidate.status !== "pending" &&
+        candidate.status !== "in_progress" &&
+        candidate.status !== "completed")
+    )
+      return undefined;
+    steps.push({ step: candidate.step, status: candidate.status });
+  }
+  return steps;
 }
 
 interface PendingApproval {
@@ -120,6 +143,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
   const [contextStats, setContextStats] = useState<ContextStats>();
   const [sessionId, setSessionId] = useState<string>();
   const [compactNext, setCompactNext] = useState(false);
+  const [plan, setPlan] = useState<PlanView>();
   const abortRef = useRef<AbortController | undefined>(undefined);
 
   useEffect(() => {
@@ -201,6 +225,14 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       setNotice(
         `Contesto compattato: ${String(value.beforeTokens)} → ${String(value.afterTokens)} token.`,
       );
+    if (value.type === "plan.updated") {
+      const steps = eventPlan(value.plan);
+      if (steps)
+        setPlan({
+          steps,
+          ...(typeof value.explanation === "string" ? { explanation: value.explanation } : {}),
+        });
+    }
     if (
       value.type === "session.completed" &&
       (value.verification === "verified" ||
@@ -267,6 +299,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         setAssistant("");
         setTools([]);
         setContextStats(undefined);
+        setPlan(undefined);
         setNotice("Nuova conversazione pronta.");
         return true;
       }
@@ -292,9 +325,40 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         setNotice("La conversazione verrà compattata prima del prossimo prompt.");
         return true;
       }
+      if (command === "/plan" && (parts.length === 0 || parts[0] === "show")) {
+        const store = new SessionStore(workspaceRoot);
+        try {
+          const selected = sessionId ? store.get(sessionId) : store.latest();
+          const stored = selected ? store.plan(selected.id) : undefined;
+          setPlan(
+            stored
+              ? {
+                  steps: stored.steps,
+                  ...(stored.explanation ? { explanation: stored.explanation } : {}),
+                }
+              : undefined,
+          );
+          setNotice(stored ? `Piano della sessione ${stored.sessionId}.` : "Nessun piano salvato.");
+        } finally {
+          store.close();
+        }
+        return true;
+      }
+      if (command === "/plan" && parts[0] === "clear") {
+        const store = new SessionStore(workspaceRoot);
+        try {
+          const selected = sessionId ? store.get(sessionId) : store.latest();
+          if (selected) store.clearPlan(selected.id);
+          setPlan(undefined);
+          setNotice("Piano cancellato.");
+        } finally {
+          store.close();
+        }
+        return true;
+      }
       if (command === "/help") {
         setNotice(
-          "/status  /context [task]  /compact  /new  /model  /permissions <mode>  /diff  /undo  /sessions  /plan <task>  /goal <task>  /clear  /exit\nCtrl+O dettagli tool · Ctrl+C annulla/esce · Shift+Enter nuova riga",
+          "/status  /context [task]  /compact  /new  /model  /permissions <mode>  /diff  /undo  /sessions  /plan <task>|show|clear  /goal <task>  /clear  /exit\nCtrl+O dettagli tool · Ctrl+C annulla/esce · Shift+Enter nuova riga",
         );
         return true;
       }
@@ -355,7 +419,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       }
       return false;
     },
-    [exit, showDiff, workspaceRoot],
+    [exit, sessionId, showDiff, workspaceRoot],
   );
 
   const submit = useCallback(
@@ -450,6 +514,27 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
           </Box>
         ))}
       </Box>
+      {plan ? (
+        <Box flexDirection="column" borderStyle="round" borderColor="blue" paddingX={1}>
+          <Text bold color="blue">
+            Piano
+          </Text>
+          {plan.explanation ? <Text dimColor>{plan.explanation}</Text> : null}
+          {plan.steps.map((item, index) => (
+            <Text
+              key={`${String(index)}-${item.step}`}
+              {...(item.status === "completed"
+                ? { color: "green" as const }
+                : item.status === "in_progress"
+                  ? { color: "yellow" as const }
+                  : {})}
+            >
+              {item.status === "completed" ? "✓" : item.status === "in_progress" ? "→" : "○"}{" "}
+              {item.step}
+            </Text>
+          ))}
+        </Box>
+      ) : null}
       <Box marginTop={1}>
         {busy ? (
           <Text color="yellow">

@@ -109,8 +109,9 @@ sessions
       const session = store.get(id);
       if (!session) throw new Error("Sessione non trovata");
       const turns = store.turns(id).map((turn) => ({ ...turn, items: store.items(turn.id) }));
+      const plan = store.plan(id);
       if (options.json) {
-        console.log(JSON.stringify({ session, turns }, null, 2));
+        console.log(JSON.stringify({ session, turns, plan }, null, 2));
         return;
       }
       console.log(`${session.id}  ${session.status}  ${session.task}`);
@@ -118,6 +119,29 @@ sessions
         console.log(`  ${turn.id}  ${turn.status}  ${turn.prompt}`);
         for (const item of turn.items) console.log(`    ${item.id}  ${item.type}  ${item.status}`);
       }
+      if (plan) for (const step of plan.steps) console.log(`  [${step.status}] ${step.step}`);
+    } finally {
+      store.close();
+    }
+  });
+program
+  .command("plan")
+  .description("mostra il piano strutturato di una sessione")
+  .argument("[id]")
+  .option("--json")
+  .action((id: string | undefined, options: { json?: boolean }) => {
+    const store = new SessionStore(root());
+    try {
+      const session = id ? store.get(id) : store.latest();
+      if (!session) throw new Error("Sessione non trovata");
+      const plan = store.plan(session.id);
+      if (!plan) throw new Error("Nessun piano salvato per la sessione");
+      if (options.json) {
+        console.log(JSON.stringify(plan, null, 2));
+        return;
+      }
+      if (plan.explanation) console.log(plan.explanation);
+      for (const step of plan.steps) console.log(`[${step.status}] ${step.step}`);
     } finally {
       store.close();
     }

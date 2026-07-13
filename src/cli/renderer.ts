@@ -52,5 +52,14 @@ export const humanRenderer =
           ),
         );
         break;
+      case "plan.updated":
+        if (Array.isArray(event.plan))
+          process.stderr.write(pc.blue(`Piano aggiornato: ${String(event.plan.length)} step\n`));
+        break;
+      case "plan.incomplete":
+        process.stderr.write(
+          pc.yellow(`Piano incompleto: ${String(event.remaining)} step rimanenti\n`),
+        );
+        break;
     }
   };

@@ -1,5 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import { stdin, stderr } from "node:process";
+import { createHash } from "node:crypto";
 import type { AlexusConfig } from "../config/schema.js";
 import { classifyCommand, type RiskLevel } from "./command-policy.js";
 
@@ -13,14 +14,26 @@ export interface ApprovalRequest {
 }
 export type ApprovalResponse = "once" | "session" | "deny";
 export type ApprovalPrompt = (request: ApprovalRequest) => Promise<ApprovalResponse>;
+export type ApprovalRemember = (key: string, request: ApprovalRequest) => void;
 export class ApprovalManager {
-  private readonly allowed = new Set<string>();
+  private readonly allowed: Set<string>;
   constructor(
     private readonly mode: AlexusConfig["approvalMode"],
     private readonly interactive: boolean,
     private readonly json: boolean,
     private readonly prompt?: ApprovalPrompt,
-  ) {}
+    remembered: Iterable<string> = [],
+    private readonly onRemember?: ApprovalRemember,
+  ) {
+    this.allowed = new Set(remembered);
+  }
+  static commandKey(command: string, args: readonly string[]): string {
+    return createHash("sha256").update(command).update("\0").update(args.join("\0")).digest("hex");
+  }
+  private remember(key: string, request: ApprovalRequest): void {
+    this.allowed.add(key);
+    this.onRemember?.(key, request);
+  }
   async evaluate(
     tool: string,
     args: unknown,
@@ -40,7 +53,7 @@ export class ApprovalManager {
     const risk = classifyCommand(command, commandArgs);
     if (risk.level === "blocked") return { allowed: false, risk: risk.level, reason: risk.reason };
     if (risk.level === "safe") return { allowed: true, risk: risk.level, reason: risk.reason };
-    const key = `${command}\0${commandArgs.join("\0")}`;
+    const key = ApprovalManager.commandKey(command, commandArgs);
     if (this.allowed.has(key)) return { allowed: true, risk: risk.level, reason: risk.reason };
     if (this.prompt) {
       const answer = await this.prompt({
@@ -50,7 +63,14 @@ export class ApprovalManager {
         risk: risk.level,
         reason: risk.reason,
       });
-      if (answer === "session") this.allowed.add(key);
+      if (answer === "session")
+        this.remember(key, {
+          tool,
+          command,
+          args: commandArgs,
+          risk: risk.level,
+          reason: risk.reason,
+        });
       return { allowed: answer !== "deny", risk: risk.level, reason: risk.reason };
     }
     if (!this.interactive || this.json)
@@ -61,7 +81,14 @@ export class ApprovalManager {
         `\nAlexus vuole eseguire: ${command} ${commandArgs.join(" ")}\nMotivo: ${risk.reason}\n[y] una volta  [a] sessione  [n] rifiuta: `,
       );
       const answer = (await rl.question("")).trim().toLowerCase();
-      if (answer === "a") this.allowed.add(key);
+      if (answer === "a")
+        this.remember(key, {
+          tool,
+          command,
+          args: commandArgs,
+          risk: risk.level,
+          reason: risk.reason,
+        });
       return { allowed: answer === "y" || answer === "a", risk: risk.level, reason: risk.reason };
     } finally {
       rl.close();
