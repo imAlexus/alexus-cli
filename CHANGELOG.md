@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1 — 2026-07-14
+
+- Il comando `alexus update` usa un bootstrap leggero che non carica SQLite prima dell'aggiornamento, evitando file nativi bloccati su Windows.
+
 ## 1.2.0 — 2026-07-14
 
 - Aggiornamento autonomo e verificato tramite `alexus update`.
