@@ -3,7 +3,11 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { credentialsPath, providerApiKey, saveProviderApiKey } from "../src/config/credentials.js";
-import { filterProviderModels, slashCommandSuggestions } from "../src/cli/tui.js";
+import {
+  appendConversationEntry,
+  filterProviderModels,
+  slashCommandSuggestions,
+} from "../src/cli/tui.js";
 
 const roots: string[] = [];
 const originalHome = process.env.ALEXUS_HOME;
@@ -66,5 +70,15 @@ describe("provider configuration", () => {
       "anthropic/claude-test",
     ]);
     expect(filterProviderModels(models, "text-only")).toEqual([]);
+  });
+
+  it("keeps recent conversation turns visible within a bounded history", () => {
+    let conversation = appendConversationEntry([], { id: 1, role: "user", text: "prima" }, 12);
+    conversation = appendConversationEntry(
+      conversation,
+      { id: 2, role: "assistant", text: "seconda risposta" },
+      12,
+    );
+    expect(conversation).toEqual([{ id: 2, role: "assistant", text: "seconda risposta" }]);
   });
 });

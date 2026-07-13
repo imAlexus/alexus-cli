@@ -51,6 +51,8 @@ Su cmd.exe usare `set OPENROUTER_API_KEY=sk-or-v1-...`; su Linux/macOS usare `ex
 
 Esegui `alexus` nella cartella del progetto per aprire l'interfaccia interattiva. La risposta viene mostrata in streaming, le operazioni sui file e i comandi appaiono in un pannello dedicato e le azioni a rischio chiedono conferma con `y` (una volta), `a` (per la sessione) o `n` (rifiuta).
 
+Prompt e risposte dei turni precedenti restano visibili nella TUI durante la conversazione. La cronologia completa continua a essere salvata nella sessione SQLite; `/clear` pulisce intenzionalmente la vista e `/new` avvia una nuova conversazione.
+
 `alexus provider` mostra i provider disponibili, permette di scegliere OpenRouter e richiede la chiave API con input mascherato. Le credenziali vengono salvate separatamente in `~/.alexus/credentials.json` con accesso limitato all'utente. Una chiave configurata esplicitamente in Alexus ha priorità; `OPENROUTER_API_KEY` resta disponibile come fallback.
 
 `alexus update` controlla l'ultima release GitHub, scarica tarball e checksum SHA-256 e aggiorna autonomamente l'installazione globale. Usa `alexus update --check` per controllare senza installare.

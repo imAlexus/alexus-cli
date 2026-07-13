@@ -41,6 +41,26 @@ interface PlanView {
   steps: StoredPlanStep[];
 }
 
+export interface ConversationEntry {
+  id: number;
+  role: "user" | "assistant" | "system";
+  text: string;
+}
+
+export function appendConversationEntry(
+  entries: ConversationEntry[],
+  entry: ConversationEntry,
+  maxCharacters = 60_000,
+): ConversationEntry[] {
+  const next = [...entries, { ...entry, text: entry.text.slice(-10_000) }];
+  let characters = next.reduce((total, item) => total + item.text.length, 0);
+  while (next.length > 1 && characters > maxCharacters) {
+    characters -= next[0]!.text.length;
+    next.shift();
+  }
+  return next;
+}
+
 type ProviderDialog =
   | { stage: "provider" }
   | { stage: "api-key"; apiKey: string; hasExisting: boolean }
@@ -221,6 +241,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
   const [config, setConfig] = useState<AlexusConfig>();
   const [busy, setBusy] = useState(false);
   const [assistant, setAssistant] = useState("");
+  const [conversation, setConversation] = useState<ConversationEntry[]>([]);
   const [tools, setTools] = useState<ToolView[]>([]);
   const [notice, setNotice] = useState("Pronto. /help mostra i comandi disponibili.");
   const [verification, setVerification] = useState<string>();
@@ -238,6 +259,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
   const [plan, setPlan] = useState<PlanView>();
   const [providerDialog, setProviderDialog] = useState<ProviderDialog>();
   const abortRef = useRef<AbortController | undefined>(undefined);
+  const conversationIdRef = useRef(0);
 
   useEffect(() => {
     void loadConfig(workspaceRoot)
@@ -557,6 +579,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       }
       if (command === "/clear") {
         setAssistant("");
+        setConversation([]);
         setTools([]);
         setNotice("Schermata pulita.");
         return true;
@@ -564,6 +587,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       if (command === "/new") {
         setSessionId(undefined);
         setAssistant("");
+        setConversation([]);
         setTools([]);
         setContextStats(undefined);
         setPlan(undefined);
@@ -731,6 +755,13 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
           : isGoal
             ? `Completa autonomamente questo obiettivo e verificane i criteri di riuscita: ${rawInput.slice(6)}`
             : rawInput;
+        setConversation((current) =>
+          appendConversationEntry(current, {
+            id: ++conversationIdRef.current,
+            role: "user",
+            text: rawInput,
+          }),
+        );
         setBusy(true);
         setAssistant("");
         setTools([]);
@@ -755,8 +786,24 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         setCompactNext(false);
         setNotice(`Sessione ${result.sessionId} completata in ${result.steps} step.`);
         setVerification(result.verification);
+        setConversation((current) =>
+          appendConversationEntry(current, {
+            id: ++conversationIdRef.current,
+            role: "assistant",
+            text: result.finalMessage,
+          }),
+        );
+        setAssistant("");
       } catch (error) {
-        setNotice(error instanceof Error ? error.message : String(error));
+        const message = error instanceof Error ? error.message : String(error);
+        setNotice(message);
+        setConversation((current) =>
+          appendConversationEntry(current, {
+            id: ++conversationIdRef.current,
+            role: "system",
+            text: `Errore: ${message}`,
+          }),
+        );
       } finally {
         abortRef.current = undefined;
         setBusy(false);
@@ -778,7 +825,25 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         {sessionId ? ` · ${sessionId}` : ""}
       </Text>
       <Box marginTop={1} flexDirection="column">
-        {assistant ? <Text>{assistant.slice(-5000)}</Text> : null}
+        {conversation.map((entry) => (
+          <Box key={entry.id} flexDirection="column" marginBottom={1}>
+            <Text
+              bold
+              color={entry.role === "user" ? "cyan" : entry.role === "assistant" ? "green" : "red"}
+            >
+              {entry.role === "user" ? "Tu" : entry.role === "assistant" ? "Alexus" : "Sistema"}
+            </Text>
+            <Text>{entry.text}</Text>
+          </Box>
+        ))}
+        {assistant ? (
+          <Box flexDirection="column" marginBottom={1}>
+            <Text bold color="green">
+              Alexus
+            </Text>
+            <Text>{assistant.slice(-5000)}</Text>
+          </Box>
+        ) : null}
         {tools.map((tool) => (
           <Box key={tool.id} flexDirection="column">
             <Text

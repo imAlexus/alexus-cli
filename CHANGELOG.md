@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.3 — 2026-07-14
+
+- Prompt, risposte ed errori dei turni precedenti restano visibili nella TUI durante la conversazione.
+- La cronologia visiva è limitata per dimensione per mantenere fluido il rendering del terminale.
+
 ## 1.2.2 — 2026-07-14
 
 - L'indicizzazione ignora cartelle di sistema non accessibili e gli errori `EPERM` di scansione.
