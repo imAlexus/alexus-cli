@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.6 — 2026-07-14
+
+- Nuovo tema developer con header `alexus://workspace`, proprietà colorate, stato operativo e identità visive per prompt e risposte.
+- Composer in stile shell con scorciatoie sempre visibili, mantenendo nascosti i riepiloghi tecnici automatici.
+
 ## 1.2.5 — 2026-07-14
 
 - Chat TUI ridisegnata con messaggi utente su fascia neutra, risposte minimali e composer piatto nello stile Codex CLI.

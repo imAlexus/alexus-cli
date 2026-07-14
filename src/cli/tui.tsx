@@ -191,15 +191,17 @@ function Composer({ active, onSubmit }: ComposerProps): React.ReactElement {
   const before = value.slice(0, cursor);
   const current = value[cursor] ?? " ";
   const after = value.slice(cursor + (cursor < value.length ? 1 : 0));
-  const placeholder = "Scrivi un messaggio o / per i comandi";
+  const placeholder = "Scrivi codice, chiedi un fix o usa /";
   const contentWidth = Math.max(24, (process.stdout.columns ?? 80) - 2);
   const visibleLength = value.length ? value.length + 3 : placeholder.length + 3;
   const filler = " ".repeat(Math.max(1, contentWidth - visibleLength));
-  const backgroundColor = "#262626";
+  const backgroundColor = "#1f2937";
   return (
     <Box flexDirection="column">
       <Box marginTop={1}>
-        <Text backgroundColor={backgroundColor}>› </Text>
+        <Text bold color="cyan" backgroundColor={backgroundColor}>
+          ❯{" "}
+        </Text>
         <Text backgroundColor={backgroundColor}>{before}</Text>
         <Text backgroundColor={backgroundColor} inverse={active}>
           {current === "\n" ? "↵" : current}
@@ -228,7 +230,9 @@ function Composer({ active, onSubmit }: ComposerProps): React.ReactElement {
           ))}
           <Text dimColor>↑↓ seleziona · Tab completa · Invio esegue</Text>
         </Box>
-      ) : null}
+      ) : (
+        <Text dimColor> Enter invia · Shift+Enter nuova riga · / comandi</Text>
+      )}
     </Box>
   );
 }
@@ -246,18 +250,41 @@ function appendToolOutput(tools: ToolView[], id: string, output: string): ToolVi
 function Header({
   workspaceRoot,
   config,
+  busy,
 }: {
   workspaceRoot: string;
   config: AlexusConfig | undefined;
+  busy: boolean;
 }): React.ReactElement {
   return (
-    <Box flexDirection="column" marginBottom={1}>
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      borderColor="gray"
+      paddingX={1}
+      marginBottom={1}
+    >
+      <Box justifyContent="space-between">
+        <Text>
+          <Text bold color="cyan">
+            ◈ alexus
+          </Text>
+          <Text dimColor>://</Text>
+          <Text bold>{path.basename(workspaceRoot)}</Text>
+        </Text>
+        <Text dimColor>v{PACKAGE_VERSION}</Text>
+      </Box>
       <Text>
-        <Text bold>Alexus CLI</Text> <Text dimColor>v{PACKAGE_VERSION}</Text>
+        <Text color="yellow">model</Text>
+        <Text dimColor> = </Text>
+        <Text color="magenta">&quot;{config?.model ?? "caricamento…"}&quot;</Text>
       </Text>
-      <Text dimColor>
-        {config?.model ?? "caricamento…"} · {path.basename(workspaceRoot)} ·{" "}
-        {config?.approvalMode ?? "…"}
+      <Text>
+        <Text color="yellow">mode</Text>
+        <Text dimColor> = </Text>
+        <Text color="cyan">&quot;{config?.approvalMode ?? "…"}&quot;</Text>
+        <Text dimColor> · </Text>
+        <Text color={busy ? "yellow" : "green"}>{busy ? "● running" : "● ready"}</Text>
       </Text>
     </Box>
   );
@@ -267,7 +294,7 @@ function userMessage(text: string): string {
   const width = Math.max(24, (process.stdout.columns ?? 80) - 2);
   return text
     .split("\n")
-    .map((line, index) => `${index === 0 ? "› " : "  "}${line}`.padEnd(width))
+    .map((line, index) => `${index === 0 ? "❯ " : "  "}${line}`.padEnd(width))
     .join("\n");
 }
 
@@ -795,23 +822,34 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
 
   return (
     <Box flexDirection="column" paddingX={1}>
-      <Header workspaceRoot={workspaceRoot} config={config} />
+      <Header workspaceRoot={workspaceRoot} config={config} busy={busy} />
       <Box flexDirection="column">
         {conversation.map((entry) => (
           <Box key={entry.id} marginBottom={1}>
             {entry.role === "user" ? (
-              <Text backgroundColor="#262626">{userMessage(entry.text)}</Text>
+              <Text backgroundColor="#1f2937">{userMessage(entry.text)}</Text>
             ) : (
-              <Text {...(entry.role === "system" ? { color: "red" as const } : {})}>
-                <Text dimColor>{entry.role === "system" ? "! " : "• "}</Text>
-                {entry.text}
-              </Text>
+              <Box flexDirection="column">
+                <Text
+                  bold
+                  {...(entry.role === "system"
+                    ? { color: "red" as const }
+                    : { color: "cyan" as const })}
+                >
+                  {entry.role === "system" ? "⚠ system" : "◆ alexus"}
+                </Text>
+                <Text {...(entry.role === "system" ? { color: "red" as const } : {})}>
+                  {entry.text}
+                </Text>
+              </Box>
             )}
           </Box>
         ))}
         {assistant ? (
-          <Box marginBottom={1}>
-            <Text dimColor>• </Text>
+          <Box flexDirection="column" marginBottom={1}>
+            <Text bold color="cyan">
+              ◆ alexus
+            </Text>
             <Text>{assistant.slice(-5000)}</Text>
           </Box>
         ) : null}
