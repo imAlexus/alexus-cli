@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.9 — 2026-07-14
+
+- Il logo usa ora un wordmark ASCII sottile, senza riquadro e con un gradiente più morbido.
+- Ridotti lo spazio verticale prima del composer e l'intensità cromatica del modello attivo.
+
 ## 1.2.8 — 2026-07-14
 
 - Il vecchio header testuale è sostituito da un logo ASCII `ALEXUS` con gradiente blu-rosa.

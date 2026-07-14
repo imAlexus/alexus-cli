@@ -193,7 +193,7 @@ function Composer({ active, model, onSubmit }: ComposerProps): React.ReactElemen
   const placeholder = "Scrivi codice, chiedi un fix o usa /";
   return (
     <Box flexDirection="column">
-      <Box marginTop={1} borderStyle="round" borderColor={active ? "cyan" : "gray"} paddingX={1}>
+      <Box borderStyle="round" borderColor={active ? "cyan" : "gray"} paddingX={1}>
         <Text bold color={active ? "cyan" : "gray"}>
           ❯{" "}
         </Text>
@@ -226,7 +226,9 @@ function Composer({ active, model, onSubmit }: ComposerProps): React.ReactElemen
         </Text>
         <Text>
           <Text dimColor>model </Text>
-          <Text color="magenta">{model}</Text>
+          <Text color="cyan" dimColor>
+            {model}
+          </Text>
         </Text>
       </Box>
     </Box>
@@ -245,41 +247,34 @@ function appendToolOutput(tools: ToolView[], id: string, output: string): ToolVi
 
 const LOGO_LETTERS = [
   {
-    color: "#38bdf8",
-    rows: ["   ██   ", "  ████  ", " ██  ██ ", " ██████ ", " ██  ██ "],
+    color: "#67e8f9",
+    rows: ["    _    ", "   / \\   ", "  / _ \\  ", " / ___ \\ ", "/_/   \\_\\"],
   },
   {
-    color: "#60a5fa",
-    rows: [" ██     ", " ██     ", " ██     ", " ██     ", " ██████ "],
+    color: "#93c5fd",
+    rows: [" _      ", "| |     ", "| |     ", "| |___  ", "|_____| "],
   },
   {
-    color: "#818cf8",
-    rows: [" ██████ ", " ██     ", " █████  ", " ██     ", " ██████ "],
+    color: "#a5b4fc",
+    rows: [" _____ ", "| ____|", "|  _|  ", "| |___ ", "|_____|"],
   },
   {
-    color: "#a78bfa",
-    rows: [" ██  ██ ", "  ████  ", "   ██   ", "  ████  ", " ██  ██ "],
+    color: "#c4b5fd",
+    rows: ["__  __", "\\ \\/ /", " \\  / ", " /  \\ ", "/_/\\_\\"],
   },
   {
-    color: "#c084fc",
-    rows: [" ██  ██ ", " ██  ██ ", " ██  ██ ", " ██  ██ ", " ██████ "],
+    color: "#d8b4fe",
+    rows: [" _   _ ", "| | | |", "| | | |", "| |_| |", " \\___/ "],
   },
   {
-    color: "#f472b6",
-    rows: [" ██████ ", " ██     ", " ██████ ", "     ██ ", " ██████ "],
+    color: "#f0abfc",
+    rows: [" ____  ", "/ ___| ", "\\___ \\ ", " ___) |", "|____/ "],
   },
 ] as const;
 
 function Header(): React.ReactElement {
   return (
-    <Box
-      flexDirection="column"
-      borderStyle="single"
-      borderColor="#4c1d95"
-      paddingX={1}
-      marginBottom={1}
-      alignSelf="flex-start"
-    >
+    <Box flexDirection="column" paddingX={1} marginBottom={1} alignSelf="flex-start">
       {[0, 1, 2, 3, 4].map((row) => (
         <Text key={row} bold>
           {LOGO_LETTERS.map((letter, index) => (
