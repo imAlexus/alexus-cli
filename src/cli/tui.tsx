@@ -192,27 +192,16 @@ function Composer({ active, onSubmit }: ComposerProps): React.ReactElement {
   const current = value[cursor] ?? " ";
   const after = value.slice(cursor + (cursor < value.length ? 1 : 0));
   const placeholder = "Scrivi codice, chiedi un fix o usa /";
-  const contentWidth = Math.max(24, (process.stdout.columns ?? 80) - 2);
-  const visibleLength = value.length ? value.length + 3 : placeholder.length + 3;
-  const filler = " ".repeat(Math.max(1, contentWidth - visibleLength));
-  const backgroundColor = "#1f2937";
   return (
     <Box flexDirection="column">
-      <Box marginTop={1}>
-        <Text bold color="cyan" backgroundColor={backgroundColor}>
+      <Box marginTop={1} borderStyle="round" borderColor={active ? "cyan" : "gray"} paddingX={1}>
+        <Text bold color={active ? "cyan" : "gray"}>
           ❯{" "}
         </Text>
-        <Text backgroundColor={backgroundColor}>{before}</Text>
-        <Text backgroundColor={backgroundColor} inverse={active}>
-          {current === "\n" ? "↵" : current}
-        </Text>
-        <Text backgroundColor={backgroundColor}>{after}</Text>
-        {!value ? (
-          <Text backgroundColor={backgroundColor} dimColor>
-            {placeholder}
-          </Text>
-        ) : null}
-        <Text backgroundColor={backgroundColor}>{filler}</Text>
+        <Text>{before}</Text>
+        <Text inverse={active}>{current === "\n" ? "↵" : current}</Text>
+        <Text>{after}</Text>
+        {!value ? <Text dimColor>{placeholder}</Text> : null}
       </Box>
       {suggestions.length ? (
         <Box flexDirection="column" paddingX={2}>

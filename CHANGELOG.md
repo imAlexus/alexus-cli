@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.7 — 2026-07-14
+
+- Il composer della chat ha ora un contorno arrotondato reattivo, cyan quando attivo e grigio durante l'esecuzione.
+
 ## 1.2.6 — 2026-07-14
 
 - Nuovo tema developer con header `alexus://workspace`, proprietà colorate, stato operativo e identità visive per prompt e risposte.
