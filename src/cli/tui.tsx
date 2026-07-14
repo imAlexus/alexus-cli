@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Box, Text, render, useApp, useInput } from "ink";
 import Spinner from "ink-spinner";
-import path from "node:path";
 import { executeTask } from "./run-task.js";
 import { loadConfig, saveProjectConfig } from "../config/loader.js";
 import type { AlexusConfig } from "../config/schema.js";
@@ -12,7 +11,6 @@ import type {
   ApprovalResponse,
 } from "../security/approval-manager.js";
 import { SessionStore, type StoredPlanStep } from "../sessions/sqlite-store.js";
-import { PACKAGE_VERSION } from "../utils/version.js";
 import { detectProject, formatProjectProfile } from "../project/project-detector.js";
 import { buildProjectContextReport } from "../context/context-builder.js";
 import { buildSessionReport, formatSessionReport } from "../sessions/session-report.js";
@@ -104,6 +102,7 @@ interface PendingApproval {
 
 interface ComposerProps {
   active: boolean;
+  model: string;
   onSubmit: (value: string) => void;
 }
 
@@ -132,7 +131,7 @@ export function slashCommandSuggestions(input: string) {
   return SLASH_COMMANDS.filter((item) => item.command.startsWith(query)).slice(0, 7);
 }
 
-function Composer({ active, onSubmit }: ComposerProps): React.ReactElement {
+function Composer({ active, model, onSubmit }: ComposerProps): React.ReactElement {
   const [value, setValue] = useState("");
   const [cursor, setCursor] = useState(0);
   const [selectedSuggestion, setSelectedSuggestion] = useState(0);
@@ -217,11 +216,19 @@ function Composer({ active, onSubmit }: ComposerProps): React.ReactElement {
               <Text dimColor>— {suggestion.description}</Text>
             </Text>
           ))}
-          <Text dimColor>↑↓ seleziona · Tab completa · Invio esegue</Text>
         </Box>
-      ) : (
-        <Text dimColor> Enter invia · Shift+Enter nuova riga · / comandi</Text>
-      )}
+      ) : null}
+      <Box justifyContent="space-between" flexWrap="wrap" paddingX={1}>
+        <Text dimColor>
+          {suggestions.length
+            ? "↑↓ seleziona · Tab completa · Invio esegue"
+            : "Enter invia · Shift+Enter nuova riga · / comandi"}
+        </Text>
+        <Text>
+          <Text dimColor>model </Text>
+          <Text color="magenta">{model}</Text>
+        </Text>
+      </Box>
     </Box>
   );
 }
@@ -236,45 +243,52 @@ function appendToolOutput(tools: ToolView[], id: string, output: string): ToolVi
   );
 }
 
-function Header({
-  workspaceRoot,
-  config,
-  busy,
-}: {
-  workspaceRoot: string;
-  config: AlexusConfig | undefined;
-  busy: boolean;
-}): React.ReactElement {
+const LOGO_LETTERS = [
+  {
+    color: "#38bdf8",
+    rows: ["   ██   ", "  ████  ", " ██  ██ ", " ██████ ", " ██  ██ "],
+  },
+  {
+    color: "#60a5fa",
+    rows: [" ██     ", " ██     ", " ██     ", " ██     ", " ██████ "],
+  },
+  {
+    color: "#818cf8",
+    rows: [" ██████ ", " ██     ", " █████  ", " ██     ", " ██████ "],
+  },
+  {
+    color: "#a78bfa",
+    rows: [" ██  ██ ", "  ████  ", "   ██   ", "  ████  ", " ██  ██ "],
+  },
+  {
+    color: "#c084fc",
+    rows: [" ██  ██ ", " ██  ██ ", " ██  ██ ", " ██  ██ ", " ██████ "],
+  },
+  {
+    color: "#f472b6",
+    rows: [" ██████ ", " ██     ", " ██████ ", "     ██ ", " ██████ "],
+  },
+] as const;
+
+function Header(): React.ReactElement {
   return (
     <Box
       flexDirection="column"
-      borderStyle="round"
-      borderColor="gray"
+      borderStyle="single"
+      borderColor="#4c1d95"
       paddingX={1}
       marginBottom={1}
+      alignSelf="flex-start"
     >
-      <Box justifyContent="space-between">
-        <Text>
-          <Text bold color="cyan">
-            ◈ alexus
-          </Text>
-          <Text dimColor>://</Text>
-          <Text bold>{path.basename(workspaceRoot)}</Text>
+      {[0, 1, 2, 3, 4].map((row) => (
+        <Text key={row} bold>
+          {LOGO_LETTERS.map((letter, index) => (
+            <Text key={index} color={letter.color}>
+              {letter.rows[row]}
+            </Text>
+          ))}
         </Text>
-        <Text dimColor>v{PACKAGE_VERSION}</Text>
-      </Box>
-      <Text>
-        <Text color="yellow">model</Text>
-        <Text dimColor> = </Text>
-        <Text color="magenta">&quot;{config?.model ?? "caricamento…"}&quot;</Text>
-      </Text>
-      <Text>
-        <Text color="yellow">mode</Text>
-        <Text dimColor> = </Text>
-        <Text color="cyan">&quot;{config?.approvalMode ?? "…"}&quot;</Text>
-        <Text dimColor> · </Text>
-        <Text color={busy ? "yellow" : "green"}>{busy ? "● running" : "● ready"}</Text>
-      </Text>
+      ))}
     </Box>
   );
 }
@@ -811,7 +825,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
 
   return (
     <Box flexDirection="column" paddingX={1}>
-      <Header workspaceRoot={workspaceRoot} config={config} busy={busy} />
+      <Header />
       <Box flexDirection="column">
         {conversation.map((entry) => (
           <Box key={entry.id} marginBottom={1}>
@@ -980,7 +994,11 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
           <Text>[y] una volta [a] sessione [n] rifiuta</Text>
         </Box>
       ) : (
-        <Composer active={!busy && !providerDialog} onSubmit={(value) => void submit(value)} />
+        <Composer
+          active={!busy && !providerDialog}
+          model={config?.model ?? "caricamento…"}
+          onSubmit={(value) => void submit(value)}
+        />
       )}
     </Box>
   );

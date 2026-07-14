@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.8 — 2026-07-14
+
+- Il vecchio header testuale è sostituito da un logo ASCII `ALEXUS` con gradiente blu-rosa.
+- Il modello attivo è mostrato sotto il composer, allineato a destra rispetto alle scorciatoie.
+
 ## 1.2.7 — 2026-07-14
 
 - Il composer della chat ha ora un contorno arrotondato reattivo, cyan quando attivo e grigio durante l'esecuzione.
