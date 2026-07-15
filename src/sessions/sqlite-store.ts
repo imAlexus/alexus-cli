@@ -408,7 +408,10 @@ export class SessionStore {
     for (const row of rows) {
       const result = row.result_json
         ? (JSON.parse(row.result_json) as unknown)
-        : { success: false, error: `Tool ${row.tool_name} interrotto dal processo precedente.` };
+        : {
+            success: false,
+            error: `Tool ${row.tool_name} was interrupted by the previous process.`,
+          };
       const now = new Date().toISOString();
       this.db.transaction(() => {
         if (row.status === "running") {

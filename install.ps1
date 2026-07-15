@@ -30,22 +30,22 @@ function Get-Release {
 }
 
 if (-not $IsWindows -and $PSVersionTable.PSEdition -eq "Core") {
-  throw "Questo installer supporta Windows. Su Linux/macOS installa il pacchetto npm della release."
+  throw "This installer supports Windows. On Linux or macOS, install the npm package from the release."
 }
 
 $node = Get-Command node.exe -ErrorAction SilentlyContinue
 $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
 if (-not $node -or -not $npm) {
-  throw "Node.js 22+ non è installato o non è nel PATH. Scaricalo da https://nodejs.org/ e rilancia questo comando."
+  throw "Node.js 22+ is not installed or is not in PATH. Download it from https://nodejs.org/ and run this command again."
 }
 
 $nodeVersion = (& $node.Source --version).Trim().TrimStart("v")
 $nodeMajor = [int]($nodeVersion.Split(".")[0])
 if ($nodeMajor -lt $MinimumNodeMajor) {
-  throw "Node.js $nodeVersion non è supportato. Installa Node.js 22 o superiore."
+  throw "Node.js $nodeVersion is not supported. Install Node.js 22 or newer."
 }
 
-Write-Step "Recupero della release Alexus"
+Write-Step "Fetching the Alexus release"
 $release = Get-Release
 $packageVersion = $release.tag_name.TrimStart("v")
 $packageName = "alexus-cli-$packageVersion.tgz"
@@ -54,7 +54,7 @@ $packageAsset = $release.assets | Where-Object name -eq $packageName | Select-Ob
 $checksumAsset = $release.assets | Where-Object name -eq $checksumName | Select-Object -First 1
 
 if (-not $packageAsset -or -not $checksumAsset) {
-  throw "La release $($release.tag_name) non contiene gli asset di installazione richiesti."
+  throw "Release $($release.tag_name) does not contain the required installation assets."
 }
 
 $tempRoot = Join-Path ([IO.Path]::GetTempPath()) "alexus-install-$([Guid]::NewGuid().ToString('N'))"
@@ -64,24 +64,24 @@ try {
   $packageFile = Join-Path $tempRoot $packageName
   $checksumFile = Join-Path $tempRoot $checksumName
 
-  Write-Step "Download di Alexus $packageVersion"
+  Write-Step "Downloading Alexus $packageVersion"
   Invoke-WebRequest -Uri $packageAsset.browser_download_url -OutFile $packageFile -Headers $Headers
   Invoke-WebRequest -Uri $checksumAsset.browser_download_url -OutFile $checksumFile -Headers $Headers
 
   $expectedHash = ((Get-Content -LiteralPath $checksumFile -Raw).Trim() -split "\s+")[0].ToUpperInvariant()
   $actualHash = (Get-FileHash -LiteralPath $packageFile -Algorithm SHA256).Hash.ToUpperInvariant()
   if ($actualHash -ne $expectedHash) {
-    throw "Checksum SHA-256 non valido. Download interrotto."
+    throw "Invalid SHA-256 checksum. Download aborted."
   }
 
-  Write-Step "Installazione globale tramite npm"
+  Write-Step "Installing globally through npm"
   & $npm.Source install --global $packageFile --omit=dev
-  if ($LASTEXITCODE -ne 0) { throw "npm non ha completato l'installazione." }
+  if ($LASTEXITCODE -ne 0) { throw "npm did not complete the installation." }
 
   $npmPrefix = (& $npm.Source prefix --global).Trim()
   $alexusCommand = Join-Path $npmPrefix "alexus.cmd"
   if (-not (Test-Path -LiteralPath $alexusCommand)) {
-    throw "Installazione completata, ma alexus.cmd non è stato trovato in $npmPrefix."
+    throw "Installation completed, but alexus.cmd was not found in $npmPrefix."
   }
 
   $currentUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
@@ -89,13 +89,13 @@ try {
   if ($pathParts -notcontains $npmPrefix) {
     [Environment]::SetEnvironmentVariable("Path", (($pathParts + $npmPrefix) -join ";"), "User")
     $env:Path = "$env:Path;$npmPrefix"
-    Write-Step "Aggiunto $npmPrefix al PATH utente"
+    Write-Step "Added $npmPrefix to the user PATH"
   }
 
   $installedVersion = (& $alexusCommand --version).Trim()
   Write-Host ""
-  Write-Host "Alexus CLI $installedVersion installato correttamente." -ForegroundColor Green
-  Write-Host "Configura OPENROUTER_API_KEY, poi esegui: alexus init"
+  Write-Host "Alexus CLI $installedVersion installed successfully." -ForegroundColor Green
+  Write-Host "Configure OPENROUTER_API_KEY, then run: alexus init"
 } finally {
   Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }

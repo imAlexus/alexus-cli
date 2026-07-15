@@ -22,7 +22,7 @@ describe("path policy", () => {
     await writeFile(outside, "secret");
     try {
       await symlink(outside, path.join(root, "link"));
-      await expect(resolveSafeExistingPath(root, "link")).rejects.toThrow(/Symlink esterno/);
+      await expect(resolveSafeExistingPath(root, "link")).rejects.toThrow(/External symlink/);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EPERM") throw error;
     }
