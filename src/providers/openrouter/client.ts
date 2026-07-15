@@ -6,7 +6,7 @@ export function createOpenRouterClient(): OpenAI {
   if (!apiKey)
     throw new AlexusError(
       "API_KEY_MISSING",
-      'Configura OpenRouter con "alexus provider" oppure imposta OPENROUTER_API_KEY.',
+      'Configure OpenRouter with "alexus provider" or set OPENROUTER_API_KEY.',
     );
   return new OpenAI({
     apiKey,

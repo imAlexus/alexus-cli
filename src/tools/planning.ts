@@ -17,13 +17,13 @@ const schema = z
   .strict()
   .refine(
     (value) => value.plan.filter((step) => step.status === "in_progress").length <= 1,
-    "Il piano può contenere al massimo uno step in corso",
+    "The plan may contain at most one in-progress step",
   );
 
 export const updatePlanTool: ToolDefinition<typeof schema> = {
   name: "update_plan",
   description:
-    "Crea o aggiorna il piano strutturato della sessione. Usalo per task con più passaggi e mantieni un solo step in corso.",
+    "Create or update the session's structured plan. Use it for multi-step tasks and keep only one step in progress.",
   schema,
   parameters: {
     type: "object",

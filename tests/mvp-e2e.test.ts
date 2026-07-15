@@ -36,7 +36,7 @@ describe("MVP end-to-end", () => {
       command: "npm",
       args: ["test"],
       timeoutMs: 30_000,
-      reason: "verifica il comportamento modificato",
+      reason: "verify the changed behavior",
     });
     const responses: ProviderResponse[] = [
       {
@@ -72,8 +72,8 @@ describe("MVP end-to-end", () => {
         toolCalls: [{ id: "test_1", name: "run_command", arguments: commandArgs }],
       },
       {
-        message: { role: "assistant", content: "Modifica verificata.", refusal: null },
-        text: "Modifica verificata.",
+        message: { role: "assistant", content: "Change verified.", refusal: null },
+        text: "Change verified.",
         toolCalls: [],
         usage: { promptTokens: 20, completionTokens: 5, cost: 0.001 },
       },
@@ -83,22 +83,22 @@ describe("MVP end-to-end", () => {
         const response = responses.shift();
         return response
           ? Promise.resolve(response)
-          : Promise.reject(new Error("Chiamata provider inattesa"));
+          : Promise.reject(new Error("Unexpected provider call"));
       },
     };
     const store = new SessionStore(workspace);
     const session = store.create({
       model: "test/model",
-      task: "aggiorna value",
+      task: "update value",
       approvalMode: "workspace",
     });
-    const turn = store.createTurn(session.id, "aggiorna value");
+    const turn = store.createTurn(session.id, "update value");
     const events = new EventBus();
     const received: AlexusEvent[] = [];
     events.on((value) => received.push(value));
 
     const result = await runAgentLoop({
-      task: "aggiorna value",
+      task: "update value",
       workspaceRoot: workspace,
       config: defaultConfig,
       provider,

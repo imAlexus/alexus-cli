@@ -42,7 +42,7 @@ describe("filesystem tools", () => {
     await writeFile(path.join(f.root, "binary.bin"), Buffer.from([1, 0, 2]));
     await expect(
       readFileTool.execute({ path: "binary.bin", startLine: 1, endLine: 2 }, f.context),
-    ).rejects.toThrow(/binario/);
+    ).rejects.toThrow(/Binary file/);
     f.store.close();
   });
   it("respects .gitignore for list and search", async () => {
@@ -74,7 +74,7 @@ describe("filesystem tools", () => {
     expect(await f.store.diff(f.session.id)).toContain("value = 2");
     await expect(
       applyPatchTool.execute({ path: "code.ts", oldText: "missing", newText: "x" }, f.context),
-    ).rejects.toThrow(/non è presente/);
+    ).rejects.toThrow(/was not found/);
     expect(await f.store.undo(f.session.id)).toEqual(["code.ts"]);
     expect(await readFile(file, "utf8")).toContain("value = 1");
     f.store.close();
@@ -85,7 +85,7 @@ describe("filesystem tools", () => {
     await writeFile(file, "old");
     await applyPatchTool.execute({ path: "code.ts", oldText: "old", newText: "agent" }, f.context);
     await writeFile(file, "user");
-    await expect(f.store.undo(f.session.id)).rejects.toThrow(/modificato dopo Alexus/);
+    await expect(f.store.undo(f.session.id)).rejects.toThrow(/modified after Alexus/);
     f.store.close();
   });
   it("applies related edits to multiple files as one transaction", async () => {
@@ -121,7 +121,7 @@ describe("filesystem tools", () => {
         },
         f.context,
       ),
-    ).rejects.toThrow(/non è presente/);
+    ).rejects.toThrow(/was not found/);
     expect(await readFile(path.join(f.root, "a.ts"), "utf8")).toBe("a = 1\n");
     expect(await readFile(path.join(f.root, "b.ts"), "utf8")).toBe("b = 1\n");
     expect(f.store.changedFiles(f.session.id)).toEqual([]);

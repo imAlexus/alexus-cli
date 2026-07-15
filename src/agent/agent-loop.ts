@@ -45,7 +45,7 @@ async function wait(ms: number, signal: AbortSignal): Promise<void> {
     const timer = setTimeout(resolve, ms);
     const abort = () => {
       clearTimeout(timer);
-      reject(new AlexusError("USER_CANCELLED", "Operazione annullata."));
+      reject(new AlexusError("USER_CANCELLED", "Operation cancelled."));
     };
     signal.addEventListener("abort", abort, { once: true });
   });
@@ -99,11 +99,11 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
   );
   const systemMessage: OpenAI.Chat.Completions.ChatCompletionSystemMessageParam = {
     role: "system",
-    content: `${SYSTEM_PROMPT}\n\nContesto iniziale:\n${context.content}`,
+    content: `${SYSTEM_PROMPT}\n\nInitial context:\n${context.content}`,
   };
   const contextUpdate: OpenAI.Chat.Completions.ChatCompletionSystemMessageParam = {
     role: "system",
-    content: `Contesto aggiornato per il nuovo turno:\n${context.content}`,
+    content: `Context updated for the new turn:\n${context.content}`,
   };
   const userMessage: OpenAI.Chat.Completions.ChatCompletionUserMessageParam = {
     role: "user",
@@ -133,11 +133,11 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
   let failedChecks = 0;
   const signatures: string[] = [];
   for (let step = 1; step <= input.config.maxSteps; step++) {
-    if (input.signal.aborted) throw new AlexusError("USER_CANCELLED", "Operazione annullata.");
+    if (input.signal.aborted) throw new AlexusError("USER_CANCELLED", "Operation cancelled.");
     if (input.maxCost !== undefined && cost >= input.maxCost)
       throw new AlexusError(
         "OPENROUTER_PROVIDER_ERROR",
-        `Limite costo di $${input.maxCost.toFixed(2)} raggiunto.`,
+        `Cost limit of $${input.maxCost.toFixed(2)} reached.`,
       );
     const compacted = compactConversation(
       messages,
@@ -239,7 +239,7 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
       if (signatures.length >= 4 && signatures.slice(-4).every((x) => x === signature))
         throw new AlexusError(
           "TOOL_VALIDATION_FAILED",
-          `Loop rilevato: tool ${call.name} ripetuto.`,
+          `Loop detected: tool ${call.name} was repeated.`,
         );
       let args: unknown;
       try {
@@ -402,7 +402,7 @@ export async function runAgentLoop(input: AgentInput): Promise<AgentResult> {
   }
   return {
     success: false,
-    finalMessage: `Raggiunto il limite di ${input.config.maxSteps} passi`,
+    finalMessage: `Reached the limit of ${input.config.maxSteps} steps`,
     steps: input.config.maxSteps,
     verification: "unverified",
     cost,

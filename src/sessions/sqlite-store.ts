@@ -308,7 +308,7 @@ export class SessionStore {
         return { role: "tool", content: row.content, tool_call_id: row.tool_call_id };
       if (row.role === "system" || row.role === "user" || row.role === "assistant")
         return { role: row.role, content: row.content };
-      throw new AlexusError("DATABASE_ERROR", `Ruolo messaggio non valido: ${row.role}`);
+      throw new AlexusError("DATABASE_ERROR", `Invalid message role: ${row.role}`);
     });
   }
   startTool(
@@ -503,7 +503,7 @@ export class SessionStore {
       const before = row.original_content?.toString("utf8") ?? "";
       const after = current?.toString("utf8") ?? "";
       if (before !== after)
-        patches.push(createTwoFilesPatch(row.path, row.path, before, after, "prima", "dopo"));
+        patches.push(createTwoFilesPatch(row.path, row.path, before, after, "before", "after"));
     }
     return patches.join("\n");
   }
@@ -529,7 +529,7 @@ export class SessionStore {
       if (row.latest_hash && (!current || hash(current) !== row.latest_hash))
         throw new AlexusError(
           "PATCH_CONFLICT",
-          `Undo interrotto: ${row.path} è stato modificato dopo Alexus.`,
+          `Undo stopped: ${row.path} was modified after Alexus changed it.`,
         );
       if (row.original_content === null) await rm(file, { force: true });
       else await writeFile(file, row.original_content);

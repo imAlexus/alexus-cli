@@ -16,7 +16,8 @@ const schema = z
   .strict();
 export const runCommandTool: ToolDefinition<typeof schema> = {
   name: "run_command",
-  description: "Esegue un processo senza shell, con argomenti separati, timeout e output limitato.",
+  description:
+    "Run a process without a shell, with separate arguments, a timeout, and bounded output.",
   schema,
   parameters: {
     type: "object",
@@ -77,7 +78,7 @@ export const runCommandTool: ToolDefinition<typeof schema> = {
         c.signal.removeEventListener("abort", abort);
         if (timedOut)
           return reject(
-            new AlexusError("COMMAND_TIMEOUT", `Timeout dopo ${input.timeoutMs} ms`, true),
+            new AlexusError("COMMAND_TIMEOUT", `Timed out after ${input.timeoutMs} ms`, true),
           );
         resolve({
           command: [input.command, ...input.args],

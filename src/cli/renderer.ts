@@ -19,7 +19,7 @@ export const humanRenderer =
       case "usage.updated":
         if (Number(event.estimatedCost) > 0)
           process.stderr.write(
-            pc.dim(`Costo stimato: $${Number(event.estimatedCost).toFixed(4)}\n`),
+            pc.dim(`Estimated cost: $${Number(event.estimatedCost).toFixed(4)}\n`),
           );
         break;
       case "verification.plan": {
@@ -31,7 +31,7 @@ export const humanRenderer =
             })
           : [];
         if (commands.length)
-          process.stderr.write(pc.dim(`Verifiche automatiche: ${commands.join(", ")}\n`));
+          process.stderr.write(pc.dim(`Automatic checks: ${commands.join(", ")}\n`));
         break;
       }
       case "command.output":
@@ -41,24 +41,24 @@ export const humanRenderer =
       case "context.built":
         process.stderr.write(
           pc.dim(
-            `Contesto: ${String(event.filesIncluded)}/${String(event.filesIndexed)} file, ${String(event.estimatedTokens)}/${String(event.budgetTokens)} token\n`,
+            `Context: ${String(event.filesIncluded)}/${String(event.filesIndexed)} files, ${String(event.estimatedTokens)}/${String(event.budgetTokens)} tokens\n`,
           ),
         );
         break;
       case "context.compacted":
         process.stderr.write(
           pc.dim(
-            `Contesto compattato: ${String(event.beforeTokens)} -> ${String(event.afterTokens)} token\n`,
+            `Context compacted: ${String(event.beforeTokens)} -> ${String(event.afterTokens)} tokens\n`,
           ),
         );
         break;
       case "plan.updated":
         if (Array.isArray(event.plan))
-          process.stderr.write(pc.blue(`Piano aggiornato: ${String(event.plan.length)} step\n`));
+          process.stderr.write(pc.blue(`Plan updated: ${String(event.plan.length)} steps\n`));
         break;
       case "plan.incomplete":
         process.stderr.write(
-          pc.yellow(`Piano incompleto: ${String(event.remaining)} step rimanenti\n`),
+          pc.yellow(`Incomplete plan: ${String(event.remaining)} steps remaining\n`),
         );
         break;
     }

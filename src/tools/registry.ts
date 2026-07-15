@@ -18,12 +18,12 @@ export class ToolRegistry {
   }
   async execute(call: RequestedToolCall, context: ToolContext): Promise<unknown> {
     const tool = this.tools.get(call.name);
-    if (!tool) throw new AlexusError("TOOL_VALIDATION_FAILED", `Tool sconosciuto: ${call.name}`);
+    if (!tool) throw new AlexusError("TOOL_VALIDATION_FAILED", `Unknown tool: ${call.name}`);
     let raw: unknown;
     try {
       raw = JSON.parse(call.arguments);
     } catch {
-      throw new AlexusError("TOOL_VALIDATION_FAILED", `JSON non valido per ${call.name}`);
+      throw new AlexusError("TOOL_VALIDATION_FAILED", `Invalid JSON for ${call.name}`);
     }
     const parsed = tool.schema.safeParse(raw);
     if (!parsed.success) throw new AlexusError("TOOL_VALIDATION_FAILED", parsed.error.message);

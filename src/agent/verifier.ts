@@ -66,7 +66,7 @@ export async function runAutomaticVerification(input: VerifierInput): Promise<Ve
       command: command.command,
       args: command.args,
       timeoutMs: input.config.commandTimeoutMs,
-      reason: `Verifica automatica ${command.kind}`,
+      reason: `Automatic ${command.kind} verification`,
     };
     const { runId } = input.store.startTool(
       input.sessionId,
@@ -149,9 +149,9 @@ export async function runAutomaticVerification(input: VerifierInput): Promise<Ve
 }
 
 export function formatVerificationSummary(summary: VerificationSummary): string {
-  if (!summary.results.length) return "Verifica automatica: nessun comando sicuro rilevato.";
+  if (!summary.results.length) return "Automatic verification: no safe command detected.";
   return [
-    "Verifica automatica:",
+    "Automatic verification:",
     ...summary.results.map(
       (result) =>
         `- ${result.success ? "OK" : "FAIL"} ${result.command.label}${result.error ? `: ${result.error}` : ""}`,

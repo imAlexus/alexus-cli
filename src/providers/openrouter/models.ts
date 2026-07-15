@@ -25,7 +25,7 @@ export async function listModels(root: string, refresh = false): Promise<AlexusM
   if (!response.ok)
     throw new AlexusError(
       "OPENROUTER_PROVIDER_ERROR",
-      `Impossibile recuperare i modelli (${response.status})`,
+      `Unable to fetch models (${response.status})`,
       true,
     );
   const raw = (await response.json()) as { data: Array<Record<string, unknown>> };
@@ -45,10 +45,10 @@ export async function listModels(root: string, refresh = false): Promise<AlexusM
 }
 export async function assertToolModel(root: string, id: string): Promise<void> {
   const model = (await listModels(root)).find((m) => m.id === id);
-  if (!model) throw new AlexusError("MODEL_NOT_FOUND", `Modello OpenRouter non trovato: ${id}`);
+  if (!model) throw new AlexusError("MODEL_NOT_FOUND", `OpenRouter model not found: ${id}`);
   if (!model.tools)
     throw new AlexusError(
       "MODEL_TOOL_CALLING_UNSUPPORTED",
-      `${id} non dichiara supporto tool calling. Seleziona un modello mostrato da "alexus model list --tools".`,
+      `${id} does not declare tool-calling support. Select a model shown by "alexus model list --tools".`,
     );
 }

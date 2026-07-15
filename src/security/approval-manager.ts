@@ -39,7 +39,7 @@ export class ApprovalManager {
     args: unknown,
   ): Promise<{ allowed: boolean; risk: RiskLevel; reason: string }> {
     if (this.mode === "readonly" && (writes.has(tool) || tool === "run_command"))
-      return { allowed: false, risk: "blocked", reason: "modalità readonly" };
+      return { allowed: false, risk: "blocked", reason: "read-only mode" };
     if (tool !== "run_command")
       return {
         allowed: true,
@@ -78,7 +78,7 @@ export class ApprovalManager {
     const rl = createInterface({ input: stdin, output: stderr });
     try {
       stderr.write(
-        `\nAlexus vuole eseguire: ${command} ${commandArgs.join(" ")}\nMotivo: ${risk.reason}\n[y] una volta  [a] sessione  [n] rifiuta: `,
+        `\nAlexus wants to run: ${command} ${commandArgs.join(" ")}\nReason: ${risk.reason}\n[y] once  [a] session  [n] deny: `,
       );
       const answer = (await rl.question("")).trim().toLowerCase();
       if (answer === "a")

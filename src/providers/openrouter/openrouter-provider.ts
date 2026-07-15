@@ -65,10 +65,9 @@ export class OpenRouterProvider implements Provider {
       return { message, text, toolCalls, ...(usage ? { usage } : {}) };
     } catch (error) {
       const status = (error as { status?: number }).status;
-      if (status === 401)
-        throw new AlexusError("OPENROUTER_AUTH_ERROR", "Chiave OpenRouter non valida.");
+      if (status === 401) throw new AlexusError("OPENROUTER_AUTH_ERROR", "Invalid OpenRouter key.");
       if (status === 429)
-        throw new AlexusError("OPENROUTER_RATE_LIMIT", "Rate limit OpenRouter raggiunto.", true);
+        throw new AlexusError("OPENROUTER_RATE_LIMIT", "OpenRouter rate limit reached.", true);
       throw new AlexusError(
         "OPENROUTER_PROVIDER_ERROR",
         error instanceof Error ? error.message : String(error),

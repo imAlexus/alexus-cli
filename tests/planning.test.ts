@@ -50,10 +50,10 @@ describe("durable plans", () => {
         id: "plan_1",
         name: "update_plan",
         arguments: JSON.stringify({
-          explanation: "Implementazione in due fasi",
+          explanation: "Two-stage implementation",
           plan: [
-            { step: "Analizzare", status: "completed" },
-            { step: "Implementare", status: "in_progress" },
+            { step: "Analyze", status: "completed" },
+            { step: "Implement", status: "in_progress" },
           ],
         }),
       },
@@ -61,10 +61,10 @@ describe("durable plans", () => {
     );
 
     expect(value.store.plan(value.session.id)).toMatchObject({
-      explanation: "Implementazione in due fasi",
+      explanation: "Two-stage implementation",
       steps: [
-        { step: "Analizzare", status: "completed" },
-        { step: "Implementare", status: "in_progress" },
+        { step: "Analyze", status: "completed" },
+        { step: "Implement", status: "in_progress" },
       ],
     });
     expect(value.received.some((event) => event.type === "plan.updated")).toBe(true);
@@ -81,14 +81,14 @@ describe("durable plans", () => {
           name: "update_plan",
           arguments: JSON.stringify({
             plan: [
-              { step: "Uno", status: "in_progress" },
-              { step: "Due", status: "in_progress" },
+              { step: "One", status: "in_progress" },
+              { step: "Two", status: "in_progress" },
             ],
           }),
         },
         value.context,
       ),
-    ).rejects.toThrow(/massimo uno step/);
+    ).rejects.toThrow(/at most one in-progress step/);
     expect(value.store.plan(value.session.id)).toBeUndefined();
     value.store.close();
   });
@@ -111,7 +111,7 @@ describe("durable plans", () => {
 
   it("marks a final answer partial while its durable plan is incomplete", async () => {
     const value = await fixture();
-    value.store.savePlan(value.session.id, [{ step: "Implementare", status: "pending" }]);
+    value.store.savePlan(value.session.id, [{ step: "Implement", status: "pending" }]);
     const turn = value.store.createTurn(value.session.id, "continua");
     const provider: Provider = {
       generate() {

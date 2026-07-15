@@ -49,7 +49,7 @@ export async function executeTask(
   const resumed = options.resumeSessionId ? store.get(options.resumeSessionId) : undefined;
   if (options.resumeSessionId && !resumed) {
     store.close();
-    throw new Error(`Sessione non trovata: ${options.resumeSessionId}`);
+    throw new Error(`Session not found: ${options.resumeSessionId}`);
   }
   if (resumed) config = { ...config, model: resumed.model, approvalMode: resumed.approvalMode };
   try {
@@ -124,7 +124,7 @@ export async function executeTask(
     if (!options.json && !options.embedded) {
       if (!result.finalMessage.endsWith("\n")) process.stdout.write("\n");
       process.stderr.write(
-        `\n${result.verification === "verified" ? "VERIFICATO" : result.verification === "partial" ? "PARZIALMENTE VERIFICATO" : "NON VERIFICATO"}\nSessione: ${session.id}\n`,
+        `\n${result.verification === "verified" ? "VERIFIED" : result.verification === "partial" ? "PARTIALLY VERIFIED" : "UNVERIFIED"}\nSession: ${session.id}\n`,
       );
     }
     if (!result.success && !options.embedded) process.exitCode = 1;

@@ -42,7 +42,7 @@ describe("repository context", () => {
       "src/auth/login.ts",
       "src/other.ts",
     ]);
-    const ranked = rankRepositoryFiles(repository, "correggi il login auth");
+    const ranked = rankRepositoryFiles(repository, "fix the auth login");
     expect(ranked[0]?.path).toBe("src/auth/login.ts");
     expect(ranked[0]?.score).toBeGreaterThan(ranked[1]?.score ?? 0);
   });
@@ -61,7 +61,7 @@ describe("repository context", () => {
       "export function login() { return false; }\n",
     );
 
-    const report = await buildProjectContextReport(workspace, "correggi login", 10_000, true);
+    const report = await buildProjectContextReport(workspace, "fix login", 10_000, true);
     expect(report.stats.estimatedTokens).toBeLessThanOrEqual(report.stats.budgetTokens);
     expect(report.content).toContain("Segui le convenzioni");
     expect(report.content).toContain("[REDACTED]");

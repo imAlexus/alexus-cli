@@ -10,7 +10,7 @@ async function readJson(file: string): Promise<Record<string, unknown>> {
     return JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
-    throw new AlexusError("CONFIG_INVALID", `Configurazione non valida in ${file}`, false, error);
+    throw new AlexusError("CONFIG_INVALID", `Invalid configuration in ${file}`, false, error);
   }
 }
 

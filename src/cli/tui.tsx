@@ -107,28 +107,36 @@ interface ComposerProps {
 }
 
 export const SLASH_COMMANDS = [
-  { command: "/help", description: "mostra tutti i comandi" },
-  { command: "/status", description: "stato del progetto e configurazione" },
-  { command: "/context", description: "mostra il contesto selezionato" },
-  { command: "/compact", description: "compatta la conversazione" },
-  { command: "/new", description: "inizia una nuova conversazione" },
-  { command: "/review", description: "report verificabile della sessione" },
-  { command: "/provider", description: "cambia provider o chiave API" },
-  { command: "/model", description: "cerca o cambia modello" },
-  { command: "/permissions", description: "cambia i permessi" },
-  { command: "/diff", description: "mostra le modifiche" },
-  { command: "/undo", description: "annulla le modifiche della sessione" },
-  { command: "/sessions", description: "elenca le sessioni" },
-  { command: "/plan", description: "crea o mostra un piano" },
-  { command: "/goal", description: "esegue un obiettivo autonomo" },
-  { command: "/clear", description: "pulisce la schermata" },
-  { command: "/exit", description: "chiude Alexus" },
+  { command: "/help", description: "show every command" },
+  { command: "/status", description: "show project and configuration status" },
+  { command: "/context", description: "show the selected repository context" },
+  { command: "/compact", description: "compact the conversation" },
+  { command: "/new", description: "start a new conversation" },
+  { command: "/review", description: "show the verifiable session report" },
+  { command: "/provider", description: "change provider or API key" },
+  { command: "/model", description: "search or change the model" },
+  { command: "/permissions", description: "change the permission mode" },
+  { command: "/diff", description: "show session changes" },
+  { command: "/undo", description: "undo session changes" },
+  { command: "/sessions", description: "list saved sessions" },
+  { command: "/plan", description: "create or show a plan" },
+  { command: "/goal", description: "run an autonomous goal" },
+  { command: "/clear", description: "clear the screen" },
+  { command: "/exit", description: "exit Alexus" },
 ] as const;
 
 export function slashCommandSuggestions(input: string) {
   if (!input.startsWith("/") || input.includes("\n") || input.includes(" ")) return [];
   const query = input.toLowerCase();
-  return SLASH_COMMANDS.filter((item) => item.command.startsWith(query)).slice(0, 7);
+  return SLASH_COMMANDS.filter((item) => item.command.startsWith(query));
+}
+
+export function slashSuggestionWindow<T>(items: T[], selected: number, pageSize = 6) {
+  const selectedIndex = items.length
+    ? ((selected % items.length) + items.length) % items.length
+    : 0;
+  const start = Math.floor(selectedIndex / pageSize) * pageSize;
+  return { items: items.slice(start, start + pageSize), selectedIndex, start };
 }
 
 function Composer({ active, model, onSubmit }: ComposerProps): React.ReactElement {
@@ -136,6 +144,7 @@ function Composer({ active, model, onSubmit }: ComposerProps): React.ReactElemen
   const [cursor, setCursor] = useState(0);
   const [selectedSuggestion, setSelectedSuggestion] = useState(0);
   const suggestions = slashCommandSuggestions(value);
+  const suggestionWindow = slashSuggestionWindow(suggestions, selectedSuggestion);
 
   useInput(
     (input, key) => {
@@ -190,7 +199,7 @@ function Composer({ active, model, onSubmit }: ComposerProps): React.ReactElemen
   const before = value.slice(0, cursor);
   const current = value[cursor] ?? " ";
   const after = value.slice(cursor + (cursor < value.length ? 1 : 0));
-  const placeholder = "Scrivi codice, chiedi un fix o usa /";
+  const placeholder = "Write code, request a fix, or use /";
   return (
     <Box flexDirection="column">
       <Box borderStyle="round" borderColor={active ? "cyan" : "gray"} paddingX={1}>
@@ -204,25 +213,28 @@ function Composer({ active, model, onSubmit }: ComposerProps): React.ReactElemen
       </Box>
       {suggestions.length ? (
         <Box flexDirection="column" paddingX={2}>
-          {suggestions.map((suggestion, index) => (
-            <Text
-              key={suggestion.command}
-              bold={index === selectedSuggestion % suggestions.length}
-              {...(index === selectedSuggestion % suggestions.length
-                ? { color: "cyan" as const }
-                : {})}
-            >
-              {index === selectedSuggestion % suggestions.length ? "›" : " "} {suggestion.command}{" "}
-              <Text dimColor>— {suggestion.description}</Text>
-            </Text>
-          ))}
+          {suggestionWindow.items.map((suggestion, index) => {
+            const absoluteIndex = suggestionWindow.start + index;
+            return (
+              <Text
+                key={suggestion.command}
+                bold={absoluteIndex === suggestionWindow.selectedIndex}
+                {...(absoluteIndex === suggestionWindow.selectedIndex
+                  ? { color: "cyan" as const }
+                  : {})}
+              >
+                {absoluteIndex === suggestionWindow.selectedIndex ? "›" : " "} {suggestion.command}{" "}
+                <Text dimColor>— {suggestion.description}</Text>
+              </Text>
+            );
+          })}
         </Box>
       ) : null}
       <Box justifyContent="space-between" flexWrap="wrap" paddingX={1}>
         <Text dimColor>
           {suggestions.length
-            ? "↑↓ seleziona · Tab completa · Invio esegue"
-            : "Enter invia · Shift+Enter nuova riga · / comandi"}
+            ? `${suggestionWindow.selectedIndex + 1}/${suggestions.length} · ↑↓ navigate · Tab complete · Enter run`
+            : "Enter send · Shift+Enter new line · / commands"}
         </Text>
         <Text>
           <Text dimColor>model </Text>
@@ -359,7 +371,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
     }
     if (value.type === "context.compacted")
       setNotice(
-        `Contesto compattato: ${String(value.beforeTokens)} → ${String(value.afterTokens)} token.`,
+        `Context compacted: ${String(value.beforeTokens)} → ${String(value.afterTokens)} tokens.`,
       );
     if (value.type === "plan.updated") {
       const steps = eventPlan(value.plan);
@@ -386,11 +398,11 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
 
   const loadModelDialog = useCallback(async () => {
     setProviderDialog({ stage: "loading-models" });
-    setNotice("Caricamento modelli OpenRouter…");
+    setNotice("Loading OpenRouter models…");
     try {
       const models = (await listModels(workspaceRoot, true)).filter((model) => model.tools);
       setProviderDialog({ stage: "model", query: "", models, selected: 0 });
-      setNotice(`${models.length} modelli con tool calling disponibili.`);
+      setNotice(`${models.length} tool-capable models available.`);
     } catch (error) {
       setProviderDialog(undefined);
       setNotice(error instanceof Error ? error.message : String(error));
@@ -404,7 +416,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       await saveProjectConfig(workspaceRoot, updated);
       setConfig(updated);
       setProviderDialog(undefined);
-      setNotice(`Modello impostato: ${modelId}`);
+      setNotice(`Model set to ${modelId}.`);
     },
     [workspaceRoot],
   );
@@ -419,7 +431,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
     if (providerDialog) {
       if (key.escape || (key.ctrl && input === "c")) {
         setProviderDialog(undefined);
-        setNotice("Configurazione provider annullata.");
+        setNotice("Provider setup cancelled.");
         return;
       }
       if (providerDialog.stage === "provider") {
@@ -435,19 +447,19 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         if (key.return) {
           const apiKey = providerDialog.apiKey.trim();
           if (!apiKey && providerDialog.hasExisting) {
-            setNotice("Chiave OpenRouter mantenuta. Caricamento modelli…");
+            setNotice("Existing OpenRouter key kept. Loading models…");
             void loadModelDialog();
             return;
           }
           if (apiKey.length < 12) {
-            setNotice("La chiave API inserita non sembra valida.");
+            setNotice("The API key does not appear to be valid.");
             return;
           }
           setProviderDialog({ stage: "loading-models" });
           void saveProviderApiKey("openrouter", apiKey)
             .then(() => {
               process.env.OPENROUTER_API_KEY = apiKey;
-              setNotice("Chiave OpenRouter salvata. Caricamento modelli…");
+              setNotice("OpenRouter key saved. Loading models…");
               return loadModelDialog();
             })
             .catch((error: unknown) => {
@@ -476,7 +488,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         const matches = filterProviderModels(providerDialog.models, providerDialog.query);
         if (key.ctrl && input === "n") {
           setProviderDialog({ stage: "custom-model", modelId: providerDialog.query.trim() });
-          setNotice("Inserimento ID modello personalizzato.");
+          setNotice("Enter a custom model ID.");
           return;
         }
         if (key.downArrow) {
@@ -509,7 +521,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
           );
           const modelId = exact?.id ?? matches[providerDialog.selected % matches.length]?.id;
           if (!modelId) {
-            setNotice("Digita un ID modello oppure selezionane uno.");
+            setNotice("Type a model ID or select one.");
             return;
           }
           setProviderDialog({ stage: "loading-models" });
@@ -539,7 +551,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         if (key.return) {
           const modelId = providerDialog.modelId.trim();
           if (!modelId) {
-            setNotice("Inserisci l'ID completo del modello, per esempio provider/modello.");
+            setNotice("Enter the full model ID, for example provider/model.");
             return;
           }
           setProviderDialog({ stage: "loading-models" });
@@ -576,9 +588,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
     const store = new SessionStore(workspaceRoot);
     try {
       const session = store.latest();
-      setNotice(
-        session ? (await store.diff(session.id)) || "Nessuna modifica." : "Nessuna sessione.",
-      );
+      setNotice(session ? (await store.diff(session.id)) || "No changes." : "No session found.");
     } finally {
       store.close();
     }
@@ -595,7 +605,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         setAssistant("");
         setConversation([]);
         setTools([]);
-        setNotice("Schermata pulita.");
+        setNotice("Screen cleared.");
         return true;
       }
       if (command === "/new") {
@@ -604,19 +614,19 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         setConversation([]);
         setTools([]);
         setPlan(undefined);
-        setNotice("Nuova conversazione pronta.");
+        setNotice("New conversation ready.");
         return true;
       }
       if (command === "/context") {
         const current = await loadConfig(workspaceRoot);
         const report = await buildProjectContextReport(
           workspaceRoot,
-          parts.join(" ") || "analizza il progetto",
+          parts.join(" ") || "analyze the project",
           current.maxContextTokens,
           current.respectGitignore,
         );
         setNotice(
-          `Contesto: ${report.stats.filesIndexed} file indicizzati, ${report.stats.filesIncluded} inclusi, ${report.stats.estimatedTokens}/${report.stats.budgetTokens} token.\n${report.rankedFiles
+          `Context: ${report.stats.filesIndexed} files indexed, ${report.stats.filesIncluded} included, ${report.stats.estimatedTokens}/${report.stats.budgetTokens} tokens.\n${report.rankedFiles
             .slice(0, 10)
             .map((file) => `${file.score}  ${file.path}`)
             .join("\n")}`,
@@ -625,7 +635,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       }
       if (command === "/compact") {
         setCompactNext(true);
-        setNotice("La conversazione verrà compattata prima del prossimo prompt.");
+        setNotice("The conversation will be compacted before the next prompt.");
         return true;
       }
       if (command === "/review") {
@@ -635,7 +645,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
           setNotice(
             selected
               ? formatSessionReport(await buildSessionReport(store, selected.id))
-              : "Nessuna sessione.",
+              : "No session found.",
           );
         } finally {
           store.close();
@@ -655,7 +665,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
                 }
               : undefined,
           );
-          setNotice(stored ? `Piano della sessione ${stored.sessionId}.` : "Nessun piano salvato.");
+          setNotice(stored ? `Plan for session ${stored.sessionId}.` : "No saved plan.");
         } finally {
           store.close();
         }
@@ -667,7 +677,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
           const selected = sessionId ? store.get(sessionId) : store.latest();
           if (selected) store.clearPlan(selected.id);
           setPlan(undefined);
-          setNotice("Piano cancellato.");
+          setNotice("Plan cleared.");
         } finally {
           store.close();
         }
@@ -675,13 +685,13 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       }
       if (command === "/help") {
         setNotice(
-          "/status  /context [task]  /compact  /new  /review  /provider  /model  /permissions <mode>  /diff  /undo  /sessions  /plan <task>|show|clear  /goal <task>  /clear  /exit\nCtrl+O dettagli tool · Ctrl+C annulla/esce · Shift+Enter nuova riga",
+          "/status  /context [task]  /compact  /new  /review  /provider  /model  /permissions <mode>  /diff  /undo  /sessions  /plan <task>|show|clear  /goal <task>  /clear  /exit\nCtrl+O tool details · Ctrl+C cancel/exit · Shift+Enter new line",
         );
         return true;
       }
       if (command === "/provider") {
         setProviderDialog({ stage: "provider" });
-        setNotice("Seleziona il provider da configurare.");
+        setNotice("Select a provider to configure.");
         return true;
       }
       if (command === "/model") {
@@ -691,7 +701,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         }
         if (!providerApiKey("openrouter")) {
           setProviderDialog({ stage: "provider" });
-          setNotice("Configura prima la chiave OpenRouter.");
+          setNotice("Configure an OpenRouter key first.");
         } else await loadModelDialog();
         return true;
       }
@@ -707,14 +717,14 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       if (command === "/permissions") {
         const mode = parts[0];
         if (mode !== "readonly" && mode !== "workspace" && mode !== "full-access") {
-          setNotice("Uso: /permissions readonly|workspace|full-access");
+          setNotice("Usage: /permissions readonly|workspace|full-access");
           return true;
         }
         const current = await loadConfig(workspaceRoot);
         const updated: AlexusConfig = { ...current, approvalMode: mode };
         await saveProjectConfig(workspaceRoot, updated);
         setConfig(updated);
-        setNotice(`Permessi impostati su ${mode}.`);
+        setNotice(`Permission mode set to ${mode}.`);
         return true;
       }
       if (command === "/diff") {
@@ -729,7 +739,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
               .list()
               .slice(0, 10)
               .map((session) => `${session.id}  ${session.status}  ${session.task}`)
-              .join("\n") || "Nessuna sessione.",
+              .join("\n") || "No sessions found.",
           );
         } finally {
           store.close();
@@ -742,8 +752,8 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
           const session = store.latest();
           setNotice(
             session
-              ? `Ripristinati: ${(await store.undo(session.id)).join(", ") || "nessun file"}`
-              : "Nessuna sessione.",
+              ? `Restored: ${(await store.undo(session.id)).join(", ") || "no files"}`
+              : "No session found.",
           );
         } finally {
           store.close();
@@ -763,9 +773,9 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         const isPlan = rawInput.startsWith("/plan ");
         const isGoal = rawInput.startsWith("/goal ");
         const task = isPlan
-          ? `Crea soltanto un piano dettagliato senza modificare file: ${rawInput.slice(6)}`
+          ? `Create a detailed plan only, without modifying files: ${rawInput.slice(6)}`
           : isGoal
-            ? `Completa autonomamente questo obiettivo e verificane i criteri di riuscita: ${rawInput.slice(6)}`
+            ? `Complete this goal autonomously and verify its success criteria: ${rawInput.slice(6)}`
             : rawInput;
         setConversation((current) =>
           appendConversationEntry(current, {
@@ -807,7 +817,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
           appendConversationEntry(current, {
             id: ++conversationIdRef.current,
             role: "system",
-            text: `Errore: ${message}`,
+            text: `Error: ${message}`,
           }),
         );
       } finally {
@@ -886,7 +896,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       {plan ? (
         <Box flexDirection="column" borderStyle="round" borderColor="blue" paddingX={1}>
           <Text bold color="blue">
-            Piano
+            Plan
           </Text>
           {plan.explanation ? <Text dimColor>{plan.explanation}</Text> : null}
           {plan.steps.map((item, index) => (
@@ -907,7 +917,7 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       <Box>
         {busy ? (
           <Text dimColor>
-            <Spinner type="dots" /> Sto lavorando…
+            <Spinner type="dots" /> Working…
           </Text>
         ) : null}
       </Box>
@@ -920,35 +930,35 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
         <Box borderStyle="double" borderColor="cyan" paddingX={1} flexDirection="column">
           {providerDialog.stage === "provider" ? (
             <>
-              <Text bold>Provider disponibili</Text>
+              <Text bold>Available providers</Text>
               <Text color="cyan">› 1. OpenRouter</Text>
-              <Text dimColor>Invio seleziona · Esc annulla</Text>
+              <Text dimColor>Enter select · Esc cancel</Text>
             </>
           ) : providerDialog.stage === "api-key" ? (
             <>
-              <Text bold>Chiave API OpenRouter</Text>
+              <Text bold>OpenRouter API key</Text>
               <Text>{"•".repeat(providerDialog.apiKey.length)} </Text>
               <Text dimColor>
                 {providerDialog.hasExisting && !providerDialog.apiKey
-                  ? "Invio mantiene la chiave esistente · Digita per sostituirla · Esc annulla"
-                  : "Invio salva · Esc annulla"}
+                  ? "Enter keep existing key · Type to replace · Esc cancel"
+                  : "Enter save · Esc cancel"}
               </Text>
             </>
           ) : providerDialog.stage === "loading-models" ? (
             <Text color="yellow">
-              <Spinner type="dots" /> Caricamento…
+              <Spinner type="dots" /> Loading…
             </Text>
           ) : providerDialog.stage === "custom-model" ? (
             <>
-              <Text bold>ID modello personalizzato</Text>
+              <Text bold>Custom model ID</Text>
               <Text color="cyan">{providerDialog.modelId} </Text>
-              <Text dimColor>Digita provider/modello · Invio salva · Esc annulla</Text>
+              <Text dimColor>Type provider/model · Enter save · Esc cancel</Text>
             </>
           ) : (
             <>
-              <Text bold>Seleziona modello OpenRouter</Text>
+              <Text bold>Select an OpenRouter model</Text>
               <Text>
-                Cerca o digita ID: <Text color="cyan">{providerDialog.query} </Text>
+                Search or type an ID: <Text color="cyan">{providerDialog.query} </Text>
               </Text>
               {filterProviderModels(providerDialog.models, providerDialog.query)
                 .slice(
@@ -972,8 +982,8 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
               <Text dimColor>
                 {filterProviderModels(providerDialog.models, providerDialog.query).length
                   ? `${providerDialog.selected + 1}/${filterProviderModels(providerDialog.models, providerDialog.query).length} · `
-                  : "Nessun risultato · "}
-                ↑↓ scorri tutti · Tab copia ID · Ctrl+N ID custom · Invio seleziona · Esc annulla
+                  : "No results · "}
+                ↑↓ navigate · Tab copy ID · Ctrl+N custom ID · Enter select · Esc cancel
               </Text>
             </>
           )}
@@ -981,17 +991,17 @@ function AlexusTui({ workspaceRoot }: { workspaceRoot: string }): React.ReactEle
       ) : approval ? (
         <Box borderStyle="double" borderColor="yellow" paddingX={1} flexDirection="column">
           <Text bold>
-            Approvazione richiesta: {approval.request.command} {approval.request.args.join(" ")}
+            Approval required: {approval.request.command} {approval.request.args.join(" ")}
           </Text>
           <Text>
-            {approval.request.reason} · rischio {approval.request.risk}
+            {approval.request.reason} · risk {approval.request.risk}
           </Text>
-          <Text>[y] una volta [a] sessione [n] rifiuta</Text>
+          <Text>[y] once [a] session [n] deny</Text>
         </Box>
       ) : (
         <Composer
           active={!busy && !providerDialog}
-          model={config?.model ?? "caricamento…"}
+          model={config?.model ?? "loading…"}
           onSubmit={(value) => void submit(value)}
         />
       )}

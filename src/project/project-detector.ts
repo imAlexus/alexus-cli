@@ -152,9 +152,9 @@ export async function detectProject(root: string): Promise<ProjectProfile> {
 
 export function formatProjectProfile(profile: ProjectProfile): string {
   return [
-    `Ecosistemi: ${profile.ecosystems.join(", ") || "non rilevati"}`,
-    `Framework: ${profile.frameworks.join(", ") || "non rilevati"}`,
+    `Ecosystems: ${profile.ecosystems.join(", ") || "none detected"}`,
+    `Frameworks: ${profile.frameworks.join(", ") || "none detected"}`,
     ...(profile.packageManager ? [`Package manager: ${profile.packageManager}`] : []),
-    `Verifiche disponibili: ${profile.verificationCommands.map((command) => command.label).join(", ") || "nessuna"}`,
+    `Available checks: ${profile.verificationCommands.map((command) => command.label).join(", ") || "none"}`,
   ].join("\n");
 }

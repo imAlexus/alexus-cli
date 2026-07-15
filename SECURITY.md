@@ -1,17 +1,17 @@
-# Sicurezza
+# Security
 
-## Versioni supportate
+## Supported versions
 
-La serie stabile `1.x` riceve correzioni di sicurezza. Le versioni `0.x` sono considerate anteprime e devono essere aggiornate.
+The stable `1.x` series receives security fixes. Versions `0.x` are previews and should be upgraded.
 
-## Segnalare una vulnerabilità
+## Reporting a vulnerability
 
-Non aprire una issue pubblica con dettagli sfruttabili. Usa **Security → Report a vulnerability** nel repository GitHub per inviare una segnalazione privata tramite GitHub Security Advisories.
+Do not open a public issue containing exploitable details. Use **Security → Report a vulnerability** in the GitHub repository to send a private report through GitHub Security Advisories.
 
-Indica versione, sistema operativo, impatto, procedura di riproduzione e una possibile mitigazione. Non includere chiavi API, credenziali o dati personali reali.
+Include the version, operating system, impact, reproduction steps, and a possible mitigation. Do not include real API keys, credentials, or personal data.
 
-## Confini di sicurezza
+## Security boundaries
 
-Alexus limita i percorsi al workspace reale, non usa una shell per eseguire processi, classifica i comandi e conserva checkpoint con hash per l'undo. Questi controlli riducono il rischio ma non sostituiscono l'ispezione delle modifiche e l'uso di repository sotto controllo versione.
+Alexus confines paths to the real workspace, runs processes without a shell, classifies commands, and stores hash-based checkpoints for undo. These controls reduce risk but do not replace reviewing changes or using version-controlled repositories.
 
-Le chiavi configurate con `alexus provider` sono conservate fuori dai progetti in `~/.alexus/credentials.json`, creato con permessi `0600` sui sistemi POSIX. Non aggiungere mai questo file a un repository o a un backup condiviso.
+Keys configured with `alexus provider` are stored outside projects in `~/.alexus/credentials.json`, created with `0600` permissions on POSIX systems. Never add this file to a repository or shared backup.

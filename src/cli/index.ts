@@ -27,35 +27,35 @@ import { updateAlexus } from "./update-command.js";
 const program = new Command();
 program
   .name("alexus")
-  .description("Agente CLI sicuro per lo sviluppo software")
+  .description("Secure CLI coding agent")
   .version(PACKAGE_VERSION)
-  .option("--debug", "mostra stack trace");
+  .option("--debug", "show stack traces");
 const root = () => process.cwd();
 program
   .command("init")
-  .description("inizializza Alexus nel workspace")
+  .description("initialize Alexus in the workspace")
   .action(async () => {
     await initializeWorkspace(root());
-    console.log(`Inizializzato ${path.join(root(), ".alexus")}`);
+    console.log(`Initialized ${path.join(root(), ".alexus")}`);
   });
 program
   .command("update")
-  .description("aggiorna Alexus CLI all'ultima release verificata")
-  .option("--check", "controlla senza installare")
-  .option("--force", "reinstalla anche la stessa versione")
-  .option("--version <version>", "installa una versione specifica")
+  .description("update Alexus CLI to the latest verified release")
+  .option("--check", "check without installing")
+  .option("--force", "reinstall even when already on the same version")
+  .option("--version <version>", "install a specific version")
   .action((options: { check?: boolean; force?: boolean; version?: string }) =>
     updateAlexus(options),
   );
 program
   .command("run")
-  .description("esegue un task singolo")
+  .description("run a single task")
   .argument("<task>")
   .option("--model <id>")
-  .option("--json", "emette solo JSONL su stdout")
-  .option("--max-cost <usd>", "limite costo", Number)
+  .option("--json", "emit JSONL only on stdout")
+  .option("--max-cost <usd>", "cost limit", Number)
   .option("--approval-mode <mode>")
-  .option("--compact", "forza la compattazione del contesto")
+  .option("--compact", "force context compaction")
   .action(
     async (
       task: string,
@@ -76,35 +76,35 @@ program
   );
 program
   .command("chat")
-  .description("avvia la modalità interattiva")
+  .description("start interactive mode")
   .action(() => startRepl(root()));
 const provider = program
   .command("provider")
-  .description("elenca e configura i provider AI")
+  .description("list and configure AI providers")
   .action(() => configureProvider());
-provider.command("list").description("elenca i provider disponibili").action(printProviders);
+provider.command("list").description("list available providers").action(printProviders);
 provider
   .command("set")
-  .description("configura un provider")
+  .description("configure a provider")
   .argument("<provider>")
   .action((providerId: string) => configureProvider(providerId));
 program
   .command("resume")
-  .description("riprende l'ultima sessione o una sessione specifica")
+  .description("resume the latest session or a specific session")
   .argument("[id]")
   .action(async (id?: string) => {
     const store = new SessionStore(root());
     const session = id ? store.get(id) : store.latest();
     if (!session) {
       store.close();
-      throw new Error("Sessione non trovata");
+      throw new Error("Session not found");
     }
     store.close();
-    await executeTask(root(), `Continua il task originale: ${session.task}`, {
+    await executeTask(root(), `Continue the original task: ${session.task}`, {
       resumeSessionId: session.id,
     });
   });
-const sessions = program.command("sessions").description("elenca o elimina sessioni");
+const sessions = program.command("sessions").description("list or delete sessions");
 sessions.action(() => {
   const store = new SessionStore(root());
   try {
@@ -119,8 +119,8 @@ sessions
   .action((id: string) => {
     const store = new SessionStore(root());
     try {
-      if (!store.delete(id)) throw new Error("Sessione non trovata");
-      console.log(`Eliminata ${id}`);
+      if (!store.delete(id)) throw new Error("Session not found");
+      console.log(`Deleted ${id}`);
     } finally {
       store.close();
     }
@@ -133,7 +133,7 @@ sessions
     const store = new SessionStore(root());
     try {
       const session = store.get(id);
-      if (!session) throw new Error("Sessione non trovata");
+      if (!session) throw new Error("Session not found");
       const turns = store.turns(id).map((turn) => ({ ...turn, items: store.items(turn.id) }));
       const plan = store.plan(id);
       if (options.json) {
@@ -152,7 +152,7 @@ sessions
   });
 sessions
   .command("export")
-  .description("esporta una sessione in JSON portabile con segreti rimossi")
+  .description("export a portable session JSON with secrets removed")
   .argument("<id>")
   .option("-o, --output <file>")
   .action(async (id: string, options: { output?: string }) => {
@@ -166,23 +166,23 @@ sessions
       }
       const destination = resolveWorkspacePath(root(), options.output);
       await writeFile(destination, json, { flag: "wx" });
-      console.log(`Esportata in ${path.relative(root(), destination)}`);
+      console.log(`Exported to ${path.relative(root(), destination)}`);
     } finally {
       store.close();
     }
   });
 program
   .command("plan")
-  .description("mostra il piano strutturato di una sessione")
+  .description("show a session's structured plan")
   .argument("[id]")
   .option("--json")
   .action((id: string | undefined, options: { json?: boolean }) => {
     const store = new SessionStore(root());
     try {
       const session = id ? store.get(id) : store.latest();
-      if (!session) throw new Error("Sessione non trovata");
+      if (!session) throw new Error("Session not found");
       const plan = store.plan(session.id);
-      if (!plan) throw new Error("Nessun piano salvato per la sessione");
+      if (!plan) throw new Error("No plan saved for this session");
       if (options.json) {
         console.log(JSON.stringify(plan, null, 2));
         return;
@@ -195,14 +195,14 @@ program
   });
 program
   .command("review")
-  .description("mostra il report verificabile di una sessione")
+  .description("show a session's verifiable report")
   .argument("[id]")
   .option("--json")
   .action(async (id: string | undefined, options: { json?: boolean }) => {
     const store = new SessionStore(root());
     try {
       const session = id ? store.get(id) : store.latest();
-      if (!session) throw new Error("Sessione non trovata");
+      if (!session) throw new Error("Session not found");
       const report = await buildSessionReport(store, session.id);
       console.log(options.json ? JSON.stringify(report, null, 2) : formatSessionReport(report));
     } finally {
@@ -211,7 +211,7 @@ program
   });
 program
   .command("status")
-  .description("mostra configurazione e stato Git")
+  .description("show configuration and Git status")
   .action(async () => {
     const config = await loadConfig(root());
     console.log(`Workspace: ${root()}\nModel: ${config.model}\nMode: ${config.approvalMode}`);
@@ -220,37 +220,37 @@ program
   });
 program
   .command("diff")
-  .description("mostra le modifiche della sessione Alexus")
+  .description("show changes made by an Alexus session")
   .argument("[id]")
   .action(async (id?: string) => {
     const store = new SessionStore(root());
     try {
       const session = id ? store.get(id) : store.latest();
-      if (!session) throw new Error("Sessione non trovata");
-      process.stdout.write((await store.diff(session.id)) || "Nessuna modifica nella sessione.\n");
+      if (!session) throw new Error("Session not found");
+      process.stdout.write((await store.diff(session.id)) || "No changes in this session.\n");
     } finally {
       store.close();
     }
   });
 program
   .command("undo")
-  .description("annulla solo le modifiche della sessione")
+  .description("undo only the changes made by a session")
   .argument("[id]")
   .action(async (id?: string) => {
     const store = new SessionStore(root());
     try {
       const session = id ? store.get(id) : store.latest();
-      if (!session) throw new Error("Sessione non trovata");
+      if (!session) throw new Error("Session not found");
       const files = await store.undo(session.id);
-      console.log(`Ripristinati: ${files.join(", ") || "nessun file"}`);
+      console.log(`Restored: ${files.join(", ") || "no files"}`);
     } finally {
       store.close();
     }
   });
 program
   .command("context")
-  .description("mostra il contesto selezionato per un task")
-  .argument("[task]", "richiesta usata per ordinare i file", "analizza il progetto")
+  .description("show the context selected for a task")
+  .argument("[task]", "request used to rank files", "analyze the project")
   .option("--json")
   .action(async (task: string, options: { json?: boolean }) => {
     const config = await loadConfig(root());
@@ -265,16 +265,16 @@ program
       return;
     }
     console.log(
-      `File indicizzati: ${report.stats.filesIndexed}\nFile inclusi: ${report.stats.filesIncluded}\nToken stimati: ${report.stats.estimatedTokens}/${report.stats.budgetTokens}\n\nFile più rilevanti:`,
+      `Files indexed: ${report.stats.filesIndexed}\nFiles included: ${report.stats.filesIncluded}\nEstimated tokens: ${report.stats.estimatedTokens}/${report.stats.budgetTokens}\n\nMost relevant files:`,
     );
     for (const file of report.rankedFiles.slice(0, 20))
       console.log(`${String(file.score).padStart(3)}  ${file.path}`);
   });
 program
   .command("config")
-  .description("mostra la configurazione risolta")
+  .description("show the resolved configuration")
   .action(async () => console.log(JSON.stringify(await loadConfig(root()), null, 2)));
-const model = program.command("model").description("gestisce il modello OpenRouter");
+const model = program.command("model").description("manage the OpenRouter model");
 model.command("get").action(async () => console.log((await loadConfig(root())).model));
 model
   .command("set")
@@ -282,7 +282,7 @@ model
   .action(async (id: string) => {
     const config = await loadConfig(root());
     await saveProjectConfig(root(), { ...config, model: id });
-    console.log(`Modello: ${id}`);
+    console.log(`Model: ${id}`);
   });
 model
   .command("list")
@@ -304,7 +304,7 @@ model
   });
 program
   .command("doctor")
-  .description("verifica ambiente, config e database")
+  .description("check environment, configuration, and database")
   .action(async () => {
     await initializeWorkspace(root());
     const checks: Array<[string, boolean, string]> = [];
@@ -318,11 +318,11 @@ program
     checks.push([
       "OPENROUTER_API_KEY",
       Boolean(providerApiKey("openrouter")),
-      providerApiKey("openrouter") ? "presente" : "mancante (esegui: alexus provider)",
+      providerApiKey("openrouter") ? "present" : "missing (run: alexus provider)",
     ]);
-    checks.push(["Workspace scrivibile", await isWritable(root()), root()]);
+    checks.push(["Writable workspace", await isWritable(root()), root()]);
     const parsed = configSchema.safeParse(await loadConfig(root()));
-    checks.push(["Configurazione", parsed.success, projectConfigPath(root())]);
+    checks.push(["Configuration", parsed.success, projectConfigPath(root())]);
     const store = new SessionStore(root());
     checks.push(["Database", store.integrity() === "ok", store.integrity()]);
     store.close();
@@ -331,11 +331,11 @@ program
         const models = await listModels(root(), true);
         const selected = (await loadConfig(root())).model;
         const found = models.find((m) => m.id === selected);
-        checks.push(["Modello disponibile", Boolean(found), selected]);
+        checks.push(["Model available", Boolean(found), selected]);
         checks.push([
           "Tool calling",
           Boolean(found?.tools),
-          found?.tools ? "supportato" : "non supportato",
+          found?.tools ? "supported" : "not supported",
         ]);
       } catch (e) {
         checks.push(["OpenRouter", false, errorMessage(e)]);

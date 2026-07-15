@@ -6,20 +6,20 @@ export const PROVIDERS = [
   {
     id: "openrouter",
     name: "OpenRouter",
-    description: "Accesso a modelli OpenAI, Anthropic, Google e altri tramite una sola API",
+    description: "Access OpenAI, Anthropic, Google, and other models through one API",
   },
 ] as const;
 
 export function printProviders(): void {
   for (const [index, provider] of PROVIDERS.entries())
     console.log(
-      `${index + 1}. ${provider.name} (${provider.id})${providerApiKey(provider.id) ? " — configurato" : ""}\n   ${provider.description}`,
+      `${index + 1}. ${provider.name} (${provider.id})${providerApiKey(provider.id) ? " — configured" : ""}\n   ${provider.description}`,
     );
 }
 
 async function promptMasked(label: string): Promise<string> {
   if (!stdin.isTTY || !stdout.isTTY || typeof stdin.setRawMode !== "function")
-    throw new Error("Serve un terminale interattivo per inserire la chiave API.");
+    throw new Error("An interactive terminal is required to enter the API key.");
   stdout.write(label);
   return new Promise<string>((resolve, reject) => {
     let value = "";
@@ -40,7 +40,7 @@ async function promptMasked(label: string): Promise<string> {
         }
         if (character === "\u0003") {
           cleanup();
-          reject(new Error("Configurazione annullata."));
+          reject(new Error("Setup cancelled."));
           return;
         }
         if (character === "\u007f" || character === "\b") {
@@ -65,11 +65,11 @@ async function promptMasked(label: string): Promise<string> {
 export async function configureProvider(providerId?: string): Promise<void> {
   let selected = providerId?.toLowerCase();
   if (!selected) {
-    console.log("Provider disponibili:\n");
+    console.log("Available providers:\n");
     printProviders();
     const rl = createInterface({ input: stdin, output: stdout });
     try {
-      const answer = (await rl.question("\nScegli un provider [1]: ")).trim();
+      const answer = (await rl.question("\nChoose a provider [1]: ")).trim();
       selected = answer || "1";
     } finally {
       rl.close();
@@ -78,22 +78,21 @@ export async function configureProvider(providerId?: string): Promise<void> {
   const provider = PROVIDERS.find(
     (candidate, index) => candidate.id === selected || String(index + 1) === selected,
   );
-  if (!provider)
-    throw new Error(`Provider non supportato: ${selected}. Usa "alexus provider list".`);
+  if (!provider) throw new Error(`Unsupported provider: ${selected}. Run "alexus provider list".`);
   const existing = providerApiKey(provider.id);
   const apiKey = (
     await promptMasked(
-      `Chiave API ${provider.name}${existing ? " (Invio mantiene quella esistente)" : ""}: `,
+      `${provider.name} API key${existing ? " (press Enter to keep the existing key)" : ""}: `,
     )
   ).trim();
   if (!apiKey && existing) {
-    console.log(`${provider.name}: chiave esistente mantenuta. Apri Alexus e usa /model.`);
+    console.log(`${provider.name}: existing key kept. Open Alexus and use /model.`);
     return;
   }
-  if (apiKey.length < 12) throw new Error("La chiave API inserita non sembra valida.");
+  if (apiKey.length < 12) throw new Error("The API key does not appear to be valid.");
   await saveProviderApiKey(provider.id, apiKey);
   if (provider.id === "openrouter") process.env.OPENROUTER_API_KEY = apiKey;
   console.log(
-    `${provider.name} configurato. Credenziali salvate in ${credentialsPath()}. Apri Alexus e usa /model.`,
+    `${provider.name} configured. Credentials saved to ${credentialsPath()}. Open Alexus and use /model.`,
   );
 }

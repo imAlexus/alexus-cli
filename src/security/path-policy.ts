@@ -18,12 +18,12 @@ export function resolveWorkspacePath(root: string, requested: string): string {
     requested.includes("\0") ||
     /^\\\\/.test(requested)
   )
-    throw new AlexusError("PATH_OUTSIDE_WORKSPACE", `Percorso vietato: ${requested}`);
+    throw new AlexusError("PATH_OUTSIDE_WORKSPACE", `Blocked path: ${requested}`);
   const resolved = path.resolve(root, requested);
   if (!within(root, resolved))
     throw new AlexusError(
       "PATH_OUTSIDE_WORKSPACE",
-      `Accesso fuori dal workspace vietato: ${requested}`,
+      `Access outside the workspace is blocked: ${requested}`,
     );
   return resolved;
 }
@@ -32,10 +32,10 @@ export async function resolveSafeExistingPath(root: string, requested: string): 
   const resolved = resolveWorkspacePath(root, requested);
   const [realRoot, realResolved] = await Promise.all([realpath(root), realpath(resolved)]);
   if (!within(realRoot, realResolved))
-    throw new AlexusError("PATH_OUTSIDE_WORKSPACE", `Symlink esterno vietato: ${requested}`);
+    throw new AlexusError("PATH_OUTSIDE_WORKSPACE", `External symlink is blocked: ${requested}`);
   const stat = await lstat(realResolved);
   if (!stat.isFile() && !stat.isDirectory())
-    throw new AlexusError("PATH_OUTSIDE_WORKSPACE", `Tipo di file speciale vietato: ${requested}`);
+    throw new AlexusError("PATH_OUTSIDE_WORKSPACE", `Special file type is blocked: ${requested}`);
   return realResolved;
 }
 
@@ -52,6 +52,9 @@ export async function assertSafeWritePath(root: string, requested: string): Prom
   }
   const realRoot = await realpath(root);
   if (!within(realRoot, parent))
-    throw new AlexusError("PATH_OUTSIDE_WORKSPACE", `Destinazione esterna vietata: ${requested}`);
+    throw new AlexusError(
+      "PATH_OUTSIDE_WORKSPACE",
+      `External destination is blocked: ${requested}`,
+    );
   return resolved;
 }

@@ -12,7 +12,7 @@ import type { ToolDefinition } from "./tool.js";
 const textContent = async (file: string): Promise<string> => {
   const data = await readFile(file);
   if (data.subarray(0, 8000).includes(0))
-    throw new AlexusError("TOOL_VALIDATION_FAILED", "File binario non leggibile");
+    throw new AlexusError("TOOL_VALIDATION_FAILED", "Binary file cannot be read");
   return data.toString("utf8");
 };
 const baseIgnore = [
@@ -40,7 +40,7 @@ const listSchema = z
   .strict();
 export const listFilesTool: ToolDefinition<typeof listSchema> = {
   name: "list_files",
-  description: "Elenca file e directory testuali nel workspace rispettando .gitignore.",
+  description: "List text files and directories in the workspace while respecting .gitignore.",
   schema: listSchema,
   parameters: {
     type: "object",
@@ -51,7 +51,7 @@ export const listFilesTool: ToolDefinition<typeof listSchema> = {
   async execute(input, c) {
     const root = await resolveSafeExistingPath(c.workspaceRoot, input.path);
     if (!(await stat(root)).isDirectory())
-      throw new AlexusError("TOOL_VALIDATION_FAILED", "Il percorso non è una directory");
+      throw new AlexusError("TOOL_VALIDATION_FAILED", "The path is not a directory");
     let entries = await fg("**/*", {
       cwd: root,
       dot: true,
@@ -77,13 +77,10 @@ const readSchema = z
     endLine: z.number().int().min(1),
   })
   .strict()
-  .refine(
-    (v) => v.endLine >= v.startLine && v.endLine - v.startLine < 1000,
-    "Intervallo righe non valido",
-  );
+  .refine((v) => v.endLine >= v.startLine && v.endLine - v.startLine < 1000, "Invalid line range");
 export const readFileTool: ToolDefinition<typeof readSchema> = {
   name: "read_file",
-  description: "Legge fino a 1000 righe numerate da un file testuale interno al workspace.",
+  description: "Read up to 1000 numbered lines from a text file inside the workspace.",
   schema: readSchema,
   parameters: {
     type: "object",
@@ -99,7 +96,7 @@ export const readFileTool: ToolDefinition<typeof readSchema> = {
     if (isSensitivePath(input.path))
       throw new AlexusError(
         "APPROVAL_DENIED",
-        `Lettura automatica del file sensibile vietata: ${input.path}`,
+        `Automatic reading of a sensitive file is blocked: ${input.path}`,
       );
     const content = await textContent(await resolveSafeExistingPath(c.workspaceRoot, input.path));
     const lines = content.split(/\r?\n/);
@@ -123,7 +120,7 @@ const searchSchema = z
   .strict();
 export const searchFilesTool: ToolDefinition<typeof searchSchema> = {
   name: "search_files",
-  description: "Cerca testo letterale nei file del workspace.",
+  description: "Search for literal text in workspace files.",
   schema: searchSchema,
   parameters: {
     type: "object",
@@ -170,7 +167,7 @@ export const searchFilesTool: ToolDefinition<typeof searchSchema> = {
 const writeSchema = z.object({ path: z.string(), content: z.string() }).strict();
 export const writeFileTool: ToolDefinition<typeof writeSchema> = {
   name: "write_file",
-  description: "Crea un nuovo file testuale. Rifiuta file già esistenti.",
+  description: "Create a new text file. Reject paths that already exist.",
   schema: writeSchema,
   parameters: {
     type: "object",
@@ -184,7 +181,7 @@ export const writeFileTool: ToolDefinition<typeof writeSchema> = {
       await stat(file);
       throw new AlexusError(
         "PATCH_CONFLICT",
-        `Il file esiste già: ${input.path}; usare apply_patch`,
+        `File already exists: ${input.path}; use apply_patch`,
       );
     } catch (e) {
       if (e instanceof AlexusError) throw e;
@@ -203,8 +200,7 @@ const patchSchema = z
   .strict();
 export const applyPatchTool: ToolDefinition<typeof patchSchema> = {
   name: "apply_patch",
-  description:
-    "Sostituisce una porzione esatta e univoca di un file. oldText deve coincidere byte per byte.",
+  description: "Replace one exact and unique section of a file. oldText must match byte for byte.",
   schema: patchSchema,
   parameters: {
     type: "object",
@@ -221,9 +217,9 @@ export const applyPatchTool: ToolDefinition<typeof patchSchema> = {
     const before = await textContent(file);
     const first = before.indexOf(input.oldText);
     if (first < 0)
-      throw new AlexusError("PATCH_CONFLICT", `Il testo originale non è presente in ${input.path}`);
+      throw new AlexusError("PATCH_CONFLICT", `The original text was not found in ${input.path}`);
     if (before.indexOf(input.oldText, first + 1) >= 0)
-      throw new AlexusError("PATCH_CONFLICT", `Il testo originale non è univoco in ${input.path}`);
+      throw new AlexusError("PATCH_CONFLICT", `The original text is not unique in ${input.path}`);
     await c.store.checkpoint(c.sessionId, input.path);
     const after =
       before.slice(0, first) + input.newText + before.slice(first + input.oldText.length);
@@ -231,7 +227,7 @@ export const applyPatchTool: ToolDefinition<typeof patchSchema> = {
     await c.store.markWritten(c.sessionId, input.path);
     return {
       path: input.path,
-      diff: createTwoFilesPatch(input.path, input.path, before, after, "prima", "dopo"),
+      diff: createTwoFilesPatch(input.path, input.path, before, after, "before", "after"),
     };
   },
 };
@@ -249,7 +245,7 @@ const multiEditSchema = z
 export const applyEditsTool: ToolDefinition<typeof multiEditSchema> = {
   name: "apply_edits",
   description:
-    "Applica fino a 50 sostituzioni esatte su più file come un'unica transazione: se una modifica è in conflitto, non scrive alcun file.",
+    "Apply up to 50 exact replacements across multiple files as one transaction: if any edit conflicts, write no files.",
   schema: multiEditSchema,
   parameters: {
     type: "object",
@@ -277,12 +273,12 @@ export const applyEditsTool: ToolDefinition<typeof multiEditSchema> = {
     const files = new Map<string, string>();
     const resolved = new Map<string, string>();
 
-    // Prepara l'intera transazione in memoria prima di toccare il filesystem.
+    // Prepare the entire transaction in memory before touching the filesystem.
     for (const edit of input.edits) {
       if (isSensitivePath(edit.path))
         throw new AlexusError(
           "APPROVAL_DENIED",
-          `Modifica automatica del file sensibile vietata: ${edit.path}`,
+          `Automatic editing of a sensitive file is blocked: ${edit.path}`,
         );
       let content = files.get(edit.path);
       if (content === undefined) {
@@ -292,12 +288,9 @@ export const applyEditsTool: ToolDefinition<typeof multiEditSchema> = {
       }
       const first = content.indexOf(edit.oldText);
       if (first < 0)
-        throw new AlexusError(
-          "PATCH_CONFLICT",
-          `Il testo originale non è presente in ${edit.path}`,
-        );
+        throw new AlexusError("PATCH_CONFLICT", `The original text was not found in ${edit.path}`);
       if (content.indexOf(edit.oldText, first + 1) >= 0)
-        throw new AlexusError("PATCH_CONFLICT", `Il testo originale non è univoco in ${edit.path}`);
+        throw new AlexusError("PATCH_CONFLICT", `The original text is not unique in ${edit.path}`);
       files.set(
         edit.path,
         content.slice(0, first) + edit.newText + content.slice(first + edit.oldText.length),
@@ -334,8 +327,8 @@ export const applyEditsTool: ToolDefinition<typeof multiEditSchema> = {
           relative,
           before.get(relative)!,
           content,
-          "prima",
-          "dopo",
+          "before",
+          "after",
         ),
       })),
     };

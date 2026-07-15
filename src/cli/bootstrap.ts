@@ -10,7 +10,7 @@ const updateOnly =
 
 if (updateOnly) {
   const program = new Command();
-  program.name("alexus").version(PACKAGE_VERSION).option("--debug", "mostra stack trace");
+  program.name("alexus").version(PACKAGE_VERSION).option("--debug", "show stack traces");
   program
     .command("update")
     .description("aggiorna Alexus CLI all'ultima release verificata")

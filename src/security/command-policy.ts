@@ -16,13 +16,13 @@ const safe =
 
 export function classifyCommand(command: string, args: readonly string[]): CommandRisk {
   const full = [command, ...args].join(" ").trim();
-  if (blocked.test(full)) return { level: "blocked", reason: "operazione di sistema bloccata" };
+  if (blocked.test(full)) return { level: "blocked", reason: "blocked system operation" };
   if (destructive.test(full))
-    return { level: "dangerous", reason: "operazione distruttiva o di pubblicazione" };
-  if (complex.test(full)) return { level: "dangerous", reason: "shell, rete o sintassi complessa" };
+    return { level: "dangerous", reason: "destructive or publishing operation" };
+  if (complex.test(full))
+    return { level: "dangerous", reason: "shell, network, or complex syntax" };
   if (moderate.test(full))
-    return { level: "moderate", reason: "modifica dipendenze o stato esterno" };
-  if (safe.test(full))
-    return { level: "safe", reason: "comando di verifica o Git in sola lettura" };
-  return { level: "moderate", reason: "eseguibile non riconosciuto" };
+    return { level: "moderate", reason: "changes dependencies or external state" };
+  if (safe.test(full)) return { level: "safe", reason: "verification or read-only Git command" };
+  return { level: "moderate", reason: "unrecognized executable" };
 }

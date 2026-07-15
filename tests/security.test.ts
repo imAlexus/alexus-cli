@@ -10,8 +10,8 @@ import { isSensitivePath } from "../src/security/secret-detector.js";
 describe("path policy", () => {
   it("blocks traversal, absolute and Windows escape paths", () => {
     const root = path.join(tmpdir(), "workspace");
-    expect(() => resolveWorkspacePath(root, "../secret")).toThrow(/fuori dal workspace/);
-    expect(() => resolveWorkspacePath(root, path.resolve(root, "file"))).toThrow(/vietato/);
+    expect(() => resolveWorkspacePath(root, "../secret")).toThrow(/outside the workspace/);
+    expect(() => resolveWorkspacePath(root, path.resolve(root, "file"))).toThrow(/Blocked path/);
     expect(() => resolveWorkspacePath(root, "C:\\Windows\\system.ini")).toThrow();
   });
   it("blocks symlinks that leave the workspace", async () => {

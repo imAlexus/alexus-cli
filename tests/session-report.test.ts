@@ -41,7 +41,7 @@ describe("session report", () => {
       completionTokens: 20,
       estimatedCost: 0.01,
     });
-    store.savePlan(session.id, [{ step: "Correggere", status: "completed" }]);
+    store.savePlan(session.id, [{ step: "Fix", status: "completed" }]);
     store.rememberApproval(session.id, "hash", "run_command", "moderate");
 
     const report = await buildSessionReport(store, session.id);

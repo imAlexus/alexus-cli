@@ -33,7 +33,7 @@ export async function buildSessionReport(
   sessionId: string,
 ): Promise<SessionReport> {
   const session = store.get(sessionId);
-  if (!session) throw new Error("Sessione non trovata");
+  if (!session) throw new Error("Session not found");
   const diff = redactSecrets(await store.diff(sessionId));
   const stats = diffStats(diff);
   const toolRows = store.db
@@ -94,10 +94,10 @@ export async function buildSessionReport(
 export function formatSessionReport(report: SessionReport): string {
   return [
     `${report.session.id} · ${report.session.status} · ${report.session.model}`,
-    `File: ${report.changedFiles.length} · +${report.insertions} -${report.deletions}`,
-    `Verifiche: ${report.verificationRuns.filter((run) => run.exitCode === 0).length}/${report.verificationRuns.length}`,
-    `Token: ${report.usage.promptTokens} in / ${report.usage.completionTokens} out · $${report.usage.estimatedCost.toFixed(4)}`,
-    `Approvazioni ricordate: ${report.rememberedApprovals}`,
+    `Files: ${report.changedFiles.length} · +${report.insertions} -${report.deletions}`,
+    `Checks: ${report.verificationRuns.filter((run) => run.exitCode === 0).length}/${report.verificationRuns.length}`,
+    `Tokens: ${report.usage.promptTokens} in / ${report.usage.completionTokens} out · $${report.usage.estimatedCost.toFixed(4)}`,
+    `Remembered approvals: ${report.rememberedApprovals}`,
     ...(report.changedFiles.length
       ? [report.changedFiles.map((file) => `- ${file}`).join("\n")]
       : []),

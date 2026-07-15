@@ -7,6 +7,7 @@ import {
   appendConversationEntry,
   filterProviderModels,
   slashCommandSuggestions,
+  slashSuggestionWindow,
 } from "../src/cli/tui.js";
 
 const roots: string[] = [];
@@ -39,12 +40,16 @@ describe("provider configuration", () => {
   });
 
   it("filters slash commands as the user types", () => {
-    expect(slashCommandSuggestions("/").length).toBeGreaterThan(5);
+    expect(slashCommandSuggestions("/")).toHaveLength(16);
     expect(slashCommandSuggestions("/co").map((item) => item.command)).toEqual([
       "/context",
       "/compact",
     ]);
     expect(slashCommandSuggestions("ordinary task")).toEqual([]);
+    const all = slashCommandSuggestions("/");
+    expect(slashSuggestionWindow(all, 5).items[0]?.command).toBe("/help");
+    expect(slashSuggestionWindow(all, 6).items[0]?.command).toBe("/provider");
+    expect(slashSuggestionWindow(all, 15).selectedIndex).toBe(15);
   });
 
   it("searches only models compatible with Alexus tools", () => {
@@ -73,12 +78,12 @@ describe("provider configuration", () => {
   });
 
   it("keeps recent conversation turns visible within a bounded history", () => {
-    let conversation = appendConversationEntry([], { id: 1, role: "user", text: "prima" }, 12);
+    let conversation = appendConversationEntry([], { id: 1, role: "user", text: "first" }, 12);
     conversation = appendConversationEntry(
       conversation,
-      { id: 2, role: "assistant", text: "seconda risposta" },
+      { id: 2, role: "assistant", text: "second reply" },
       12,
     );
-    expect(conversation).toEqual([{ id: 2, role: "assistant", text: "seconda risposta" }]);
+    expect(conversation).toEqual([{ id: 2, role: "assistant", text: "second reply" }]);
   });
 });

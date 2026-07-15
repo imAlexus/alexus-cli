@@ -21,7 +21,7 @@ export function sanitizeSessionValue(value: unknown, key = ""): unknown {
 
 export async function buildSessionExport(store: SessionStore, sessionId: string): Promise<unknown> {
   const session = store.get(sessionId);
-  if (!session) throw new Error("Sessione non trovata");
+  if (!session) throw new Error("Session not found");
   const turns = store.turns(sessionId).map((turn) => ({
     ...turn,
     items: store.items(turn.id),

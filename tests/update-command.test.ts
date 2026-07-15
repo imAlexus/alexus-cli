@@ -7,7 +7,7 @@ describe("self update", () => {
     expect(compareVersions("1.2.0", "1.1.9")).toBe(1);
     expect(compareVersions("v1.1.0", "1.1")).toBe(0);
     expect(compareVersions("1.0.9", "1.1.0")).toBe(-1);
-    expect(() => compareVersions("latest", "1.0.0")).toThrow(/non valida/);
+    expect(() => compareVersions("latest", "1.0.0")).toThrow(/Invalid version/);
   });
 
   it("accepts only the matching SHA-256 checksum", () => {

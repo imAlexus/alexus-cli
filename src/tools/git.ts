@@ -18,7 +18,7 @@ async function git(
 const statusSchema = z.object({}).strict();
 export const gitStatusTool: ToolDefinition<typeof statusSchema> = {
   name: "git_status",
-  description: "Mostra lo stato Git strutturato.",
+  description: "Show structured Git status.",
   schema: statusSchema,
   parameters: { type: "object", additionalProperties: false, properties: {}, required: [] },
   async execute(_, c) {
@@ -35,7 +35,7 @@ const diffSchema = z
   .strict();
 export const gitDiffTool: ToolDefinition<typeof diffSchema> = {
   name: "git_diff",
-  description: "Mostra diff Git completo, staged, statistiche o di un file.",
+  description: "Show a full, staged, statistical, or file-specific Git diff.",
   schema: diffSchema,
   parameters: {
     type: "object",

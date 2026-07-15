@@ -18,7 +18,7 @@ function parseCredentials(content: string): CredentialsFile {
   } catch (error) {
     throw new AlexusError(
       "CONFIG_INVALID",
-      `Credenziali non valide in ${credentialsPath()}`,
+      `Invalid credentials in ${credentialsPath()}`,
       false,
       error,
     );
